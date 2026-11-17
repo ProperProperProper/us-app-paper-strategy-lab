@@ -34,7 +34,23 @@ def running_pid():
     process = STATE.get("process")
     if process is not None and process.poll() is None:
         return process.pid
+    try:
+        output = subprocess.check_output(["pgrep", "-f", str(ROOT / "scripts" / "app_strategy_lab.py")], text=True)
+        for line in output.splitlines():
+            pid = int(line.strip())
+            if pid != os.getpid():
+                return pid
+    except (OSError, ValueError, subprocess.CalledProcessError):
+        pass
     return None
+
+
+def runtime_status():
+    path = RUNS / "app_runtime_status.json"
+    try:
+        return json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
 
 
 def latest_payload():
@@ -65,7 +81,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/api/state":
-            self.send_json({"running": running_pid() is not None, "pid": running_pid(), "config": STATE.get("config"), "latest": latest_payload()})
+            self.send_json({"running": running_pid() is not None, "pid": running_pid(), "config": STATE.get("config"), "runtime": runtime_status(), "latest": latest_payload()})
             return
         raw = HTML.encode()
         self.send_response(200)
