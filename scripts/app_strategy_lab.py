@@ -158,6 +158,8 @@ def ask_agent(client: MCPClient | None, antigravity: AntigravityOptimizer | None
         "profit_min_retrace. Explicitly consider whether "
         "the exit captures a large profit while protecting an already-profitable "
         "position; do not use time-based exits as a substitute for profit capture. "
+        "Keep entries signal-driven. Buy-and-hold is a benchmark only and must "
+        "not be presented as a matched-entry strategy result. "
         "These are the only safe strategy configuration keys. NVIDIA may suggest; "
         "Antigravity is the only authority allowed to turn a suggestion into a "
         "locally tested configuration. Do not invent performance claims. "

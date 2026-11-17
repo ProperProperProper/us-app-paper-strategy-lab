@@ -2,10 +2,10 @@
 
 The lab uses a proposal-and-evaluation design:
 
-1. The US.APP runner loads the recent candle cache and splits it chronologically.
+1. The US.APP runner loads the requested bounded candle window (90 calendar days by default) and splits it chronologically.
 2. Local and NVIDIA gateway workers, plus optional Antigravity, propose bounded mutations.
 3. The local evaluator scores every candidate.
-4. The runner selects the best training candidates, re-evaluates them on validation data, and evaluates the selected candidate on the final holdout.
+4. The runner selects the best training candidates, re-evaluates them on validation data, and evaluates the selected candidate on the final holdout. Each round also includes explicit profit-capture strategy variants.
 5. The selected parameters are written to the local live-strategy JSON artifact.
 6. The browser console exposes process status and the latest run artifact.
 
