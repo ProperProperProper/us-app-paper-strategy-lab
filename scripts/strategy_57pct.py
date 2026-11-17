@@ -36,6 +36,13 @@ def aggregate_candles(candles: pd.DataFrame, interval_minutes: int) -> pd.DataFr
     if interval not in RESEARCH_INTERVALS or interval % 10:
         raise ValueError(f"interval must be one of {RESEARCH_INTERVALS}")
     frame = candles.copy().sort_index()
+    if "time_key" in frame.columns:
+        frame["time_key"] = pd.to_datetime(frame["time_key"], errors="coerce")
+        if frame["time_key"].isna().any():
+            raise ValueError("candles contain invalid time_key values")
+        frame = frame.set_index("time_key").sort_index()
+    if not isinstance(frame.index, pd.DatetimeIndex):
+        raise ValueError("candles must have a DatetimeIndex for interval aggregation")
     if frame.empty or interval == 10:
         return frame
     expected = interval // 10
