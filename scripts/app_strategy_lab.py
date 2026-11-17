@@ -145,6 +145,12 @@ def parse_proposal(text: str) -> dict | None:
 
 
 def ask_agent(client: MCPClient | None, antigravity: AntigravityOptimizer | None, provider: str, profile: dict, parents: list[dict], role: str, nvidia_proposals: list[dict] | None = None) -> dict | None:
+    role_instruction = {
+        "explorer": "Generate a falsifiable strategy hypothesis and identify what evidence would disprove it.",
+        "critic": "Actively attack the premise: look for benchmark mismatch, leakage, regime dependence, overfitting, and exits that merely harvest one lucky move.",
+        "risk reviewer": "Prioritize drawdown, profit protection, slippage, execution timing, position limits, and whether the exit can actually be implemented causally.",
+        "true controller: choose, constrain, and configure one NVIDIA proposal for local deterministic testing": "Challenge every proposal before configuring it. Reject unsupported performance claims, unmatched buy-and-hold comparisons, time-based substitutes for profit capture, and candidates that only win in-sample.",
+    }.get(role, "State the hypothesis, its failure mode, and the evidence required to accept it.")
     prompt = (
         "You are an independent mutation agent for the US.APP Moomoo paper bot. "
         "The active strategy is a causal US.APP 10-minute Donchian breakout with EMA trend filtering and close-based execution. "
@@ -160,7 +166,16 @@ def ask_agent(client: MCPClient | None, antigravity: AntigravityOptimizer | None
         "position; do not use time-based exits as a substitute for profit capture. "
         "Keep entries signal-driven. Buy-and-hold is a benchmark only and must "
         "not be presented as a matched-entry strategy result. "
-        "These are the only safe strategy configuration keys. NVIDIA may suggest; "
+        "These are the only safe strategy configuration keys. "
+        f"Your assigned role is: {role_instruction} "
+        "Before returning a candidate, challenge: (1) is the entry still signal-driven, "
+        "(2) is the benchmark matched to the same entry, (3) does the exit protect a "
+        "realized profit without future data, (4) does it survive chronological validation "
+        "and final test, and (5) is the sample large enough to support the claim? "
+        "Use only the supplied DATA PROFILE and locally testable hypotheses as evidence; "
+        "do not invent candle behavior, trades, or performance. Cite the relevant profile "
+        "fact in your internal reasoning before returning JSON. "
+        "NVIDIA may suggest; "
         "Antigravity is the only authority allowed to turn a suggestion into a "
         "locally tested configuration. Do not invent performance claims. "
         f"Role: {role}. DATA PROFILE: {json.dumps(profile)} "
@@ -210,7 +225,21 @@ def main() -> int:
     frame = load_frame(args.db, args.lookback_days)
     train_end, validation_end = int(len(frame) * .60), int(len(frame) * .80)
     train, validation, test = frame.iloc[:train_end], frame.iloc[train_end:validation_end], frame.iloc[validation_end:]
-    profile = {"symbol": "US.APP", "interval": "10m", "rows": len(frame), "start": str(frame.index.min()), "end": str(frame.index.max()), "lookback_days": int(args.lookback_days), "train_rows": len(train), "validation_rows": len(validation), "test_rows": len(test)}
+    baseline_evidence = {
+        label: evaluate(part, dict(BASELINE))["stats"]
+        for label, part in (("train", train), ("validation", validation), ("test", test))
+    }
+    profile = {
+        "symbol": "US.APP", "interval": "10m", "rows": len(frame),
+        "start": str(frame.index.min()), "end": str(frame.index.max()),
+        "lookback_days": int(args.lookback_days), "train_rows": len(train),
+        "validation_rows": len(validation), "test_rows": len(test),
+        "sessions": int(frame.index.normalize().nunique()),
+        "close_start": round(float(frame["close"].iloc[0]), 6),
+        "close_end": round(float(frame["close"].iloc[-1]), 6),
+        "raw_close_to_close_return_pct": round(float((frame["close"].iloc[-1] / frame["close"].iloc[0] - 1) * 100), 3),
+        "baseline_evidence": baseline_evidence,
+    }
     run_dir = args.run_dir / ("APP-" + time.strftime("%Y%m%d-%H%M%S"))
     run_dir.mkdir(parents=True, exist_ok=True)
     stop_file = run_dir / "STOP"

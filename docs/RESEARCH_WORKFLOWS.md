@@ -21,6 +21,11 @@ Every strategy investigation follows this order:
 6. Promote a candidate only after it improves the relevant holdout evidence; a high full-window result alone is not sufficient.
 
 Agents may propose hypotheses, but the local deterministic evaluator is the only authority for fills, returns, drawdown, trade count, and promotion.
+Agent prompts include deterministic data evidence for the active window: exact timestamps, candle and session counts, endpoint prices, raw close-to-close movement, and baseline train/validation/test metrics. Agents must ground challenges in that evidence and may not invent trades or performance.
+
+## Agent challenge loop
+
+Agents are intentionally given opposing responsibilities. An explorer proposes a falsifiable idea; a critic tries to break it through benchmark mismatch, leakage, regime dependence, and overfitting; a risk reviewer tests drawdown and causal execution; and the coordinator rejects unsupported claims before local evaluation. Each agent must state the failure mode and the evidence that would disprove its proposal. A candidate is research output only after the deterministic evaluator checks it; a candidate is promotion material only after chronological validation and final-test evidence.
 
 ## Reports and artifacts
 

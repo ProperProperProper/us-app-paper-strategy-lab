@@ -18,6 +18,10 @@ Candidate strategies are represented as structured parameters, indicator specifi
 
 Data is kept chronological. The current runner uses 60% training, 20% validation, and 20% final test data. It does not yet perform session-by-session strategy re-selection or full walk-forward replay in the mutation loop.
 
+## Adversarial agent roles
+
+Proposal workers are not treated as a voting pool. Explorer, critic, risk-reviewer, and coordinator roles are instructed to challenge the premise, benchmark fairness, leakage risk, regime dependence, causal implementability, and holdout evidence. Models may propose or reject hypotheses; only the deterministic evaluator can produce performance evidence.
+
 ## Run artifacts and auditability
 
 Candidate results, provider responses, status, and promoted strategy parameters are written to local run JSON files. Long-term learned memory, supervisor state, and database-backed mutation history are not implemented in this repository. Generated artifacts are excluded from the public repository.
