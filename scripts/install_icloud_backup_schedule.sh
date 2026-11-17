@@ -10,7 +10,9 @@ mkdir -p "$HOME/Library/LaunchAgents"
 launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
 rm -f "$PLIST"
 /usr/bin/defaults write "$PLIST" Label -string "$LABEL"
-/usr/bin/defaults write "$PLIST" ProgramArguments -array /bin/zsh "$SCRIPT_PATH"
+/usr/bin/defaults write "$PLIST" ProcessType -string Interactive
+APPLE_SCRIPT="do shell script \"/bin/zsh '$SCRIPT_PATH'\""
+/usr/bin/plutil -insert ProgramArguments -xml "<array><string>/usr/bin/osascript</string><string>-e</string><string>$APPLE_SCRIPT</string></array>" "$PLIST"
 /usr/bin/defaults write "$PLIST" RunAtLoad -bool true
 /usr/bin/defaults write "$PLIST" StartInterval -int 604800
 /usr/bin/defaults write "$PLIST" StandardOutPath -string "$HOME/Library/Logs/us-app-paper-strategy-lab-backup.log"

@@ -12,8 +12,7 @@ fi
 
 mkdir -p "$ICLOUD_ROOT"
 STAGING="$(mktemp -d "$ICLOUD_ROOT/.us-app-paper-strategy-lab.XXXXXX")"
-PREVIOUS="${BACKUP_ROOT}.previous"
-cleanup() { rm -rf "$STAGING" "$PREVIOUS"; }
+cleanup() { rm -rf "$STAGING"; }
 trap cleanup EXIT INT TERM
 
 # Copy source, documentation, Git history, current data, and ignored runtime
@@ -55,13 +54,11 @@ git_revision="$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || print unkno
   print "sqlite_snapshot=online_backup_api"
 } > "$STAGING/BACKUP_MANIFEST.txt"
 
-# Atomically replace the one weekly snapshot. The previous snapshot is moved
-# aside only long enough for the rename, then removed after the new snapshot is
-# in place.
-if [[ -e "$BACKUP_ROOT" ]]; then
-  mv "$BACKUP_ROOT" "$PREVIOUS"
-fi
-mv "$STAGING" "$BACKUP_ROOT"
+# iCloud Drive does not reliably permit renaming an existing synced directory.
+# Mirror the completed staging tree into the one snapshot instead; --delete
+# removes files that no longer belong while preserving the destination folder.
+mkdir -p "$BACKUP_ROOT"
+/usr/bin/rsync -a --delete "$STAGING/" "$BACKUP_ROOT/"
 trap - EXIT INT TERM
-rm -rf "$PREVIOUS"
+rm -rf "$STAGING"
 print "iCloud backup complete: $BACKUP_ROOT"

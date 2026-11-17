@@ -22,8 +22,10 @@ documentation. SQLite databases are copied through SQLite's online backup API
 so the snapshot remains consistent while the lab is running. Temporary caches,
 SQLite WAL/SHM sidecars, locks, and Python bytecode are excluded.
 
-The snapshot is overwritten as one unit after staging completes. If iCloud
-Drive is unavailable, the script fails without changing the existing snapshot.
+The snapshot is staged locally, then mirrored with `rsync --delete` after the
+staging copy completes. This avoids renaming an existing iCloud-synced folder,
+which iCloud may reject. If iCloud Drive is unavailable, the script fails
+before the mirror step.
 
 ## Restore on another Mac
 
