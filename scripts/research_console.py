@@ -35,7 +35,7 @@ def running_pid():
     if process is not None and process.poll() is None:
         return process.pid
     try:
-        output = subprocess.check_output(["pgrep", "-f", str(ROOT / "scripts" / "app_strategy_lab.py")], text=True)
+        output = subprocess.check_output(["pgrep", "-f", "app_strategy_lab\\.py"], text=True)
         for line in output.splitlines():
             pid = int(line.strip())
             if pid != os.getpid():
