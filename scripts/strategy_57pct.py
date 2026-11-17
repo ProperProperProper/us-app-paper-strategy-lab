@@ -27,6 +27,40 @@ BASELINE = {
 }
 ALLOCATION = 1.0
 EMA_WARMUP_MULTIPLIER = 1
+RESEARCH_INTERVALS = (10, 20, 30, 40, 50, 60, 70)
+
+
+def aggregate_candles(candles: pd.DataFrame, interval_minutes: int) -> pd.DataFrame:
+    """Aggregate complete US RTH 10-minute bars without crossing sessions."""
+    interval = int(interval_minutes)
+    if interval not in RESEARCH_INTERVALS or interval % 10:
+        raise ValueError(f"interval must be one of {RESEARCH_INTERVALS}")
+    frame = candles.copy().sort_index()
+    if frame.empty or interval == 10:
+        return frame
+    expected = interval // 10
+    session = frame.index.normalize()
+    minutes = (frame.index - session).total_seconds() / 60.0 - 570.0
+    # Moomoo's 10-minute time_key is the bar end.  Ceiling assigns bars to
+    # 09:30+N*interval and therefore preserves complete higher-timeframe bars.
+    bucket = np.maximum(np.ceil(minutes / interval).astype(int) - 1, 0)
+    working = frame.assign(_session=session, _bucket=bucket)
+    rows = []
+    for (session_day, bucket_number), group in working.groupby(["_session", "_bucket"], sort=True):
+        if len(group) != expected:
+            continue
+        stamp = session_day + pd.Timedelta(minutes=570 + (int(bucket_number) + 1) * interval)
+        rows.append({
+            "time_key": stamp,
+            "open": float(group["open"].iloc[0]),
+            "high": float(group["high"].max()),
+            "low": float(group["low"].min()),
+            "close": float(group["close"].iloc[-1]),
+            "volume": float(group["volume"].sum()),
+        })
+    if not rows:
+        return frame.iloc[0:0].copy()
+    return pd.DataFrame(rows).set_index("time_key").sort_index()
 
 
 def required_warmup_candles(params: dict = BASELINE) -> int:

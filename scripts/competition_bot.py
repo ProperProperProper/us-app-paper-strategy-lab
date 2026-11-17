@@ -45,7 +45,7 @@ from moomoo import (
 
 from quant_storage import save_candles, save_execution_event
 from quant_api import BASELINE, audit_api, risk_api, strategy_api
-from strategy_57pct import profit_capture_exit
+from strategy_57pct import RESEARCH_INTERVALS, aggregate_candles, profit_capture_exit
 
 
 POSITION_FRACTION = 0.95
@@ -105,6 +105,8 @@ class CompetitionBot:
         self.strategy_baseline = dict(BASELINE)
         self.strategy_signal = strategy_api.signal
         self.strategy_profit_capture_exit = profit_capture_exit
+        self.strategy_aggregate_candles = aggregate_candles
+        self.strategy_interval = 10
         self.strategy_params = dict(BASELINE)
         self._refresh_strategy_code(force=True)
         self.quote = OpenQuoteContext(host="127.0.0.1", port=11111)
@@ -121,6 +123,10 @@ class CompetitionBot:
                 payload = json.loads(path.read_text())
                 params = payload.get("params", payload)
                 if isinstance(params, dict):
+                    interval = int(payload.get("interval", 10)) if isinstance(payload, dict) else 10
+                    if interval not in RESEARCH_INTERVALS:
+                        raise ValueError(f"unsupported live strategy interval: {interval}")
+                    self.strategy_interval = interval
                     logging.info("loaded strategy config %s", path)
                     return {**self.strategy_baseline, **params}
             except (OSError, json.JSONDecodeError, TypeError):
@@ -141,13 +147,14 @@ class CompetitionBot:
             module = importlib.util.module_from_spec(spec)
             sys.modules[module_name] = module
             spec.loader.exec_module(module)
-            if not all(hasattr(module, name) for name in ("BASELINE", "strategy_signal", "profit_capture_exit")):
+            if not all(hasattr(module, name) for name in ("BASELINE", "strategy_signal", "profit_capture_exit", "aggregate_candles")):
                 raise ImportError("strategy source missing required runtime contract")
             self.strategy_module = module
             self.strategy_mtime = mtime
             self.strategy_baseline = dict(module.BASELINE)
             self.strategy_signal = module.strategy_signal
             self.strategy_profit_capture_exit = module.profit_capture_exit
+            self.strategy_aggregate_candles = module.aggregate_candles
             self.strategy_params = self._load_strategy_params()
             logging.info("hot-swapped strategy code mtime=%s params=%s", mtime, self.strategy_params)
         except Exception as exc:
@@ -364,11 +371,13 @@ class CompetitionBot:
         for symbol in self.symbols:
             try:
                 candles = self.candles(symbol)
-                signal_data = self.strategy_signal(candles, self.strategy_params)
+                strategy_candles = self.strategy_aggregate_candles(candles, self.strategy_interval)
+                signal_data = self.strategy_signal(strategy_candles, self.strategy_params)
                 if self.state["last_bar"].get(symbol) == signal_data["bar"]:
                     continue
                 self._refresh_strategy_code()
-                signal_data = self.strategy_signal(candles, self.strategy_params)
+                strategy_candles = self.strategy_aggregate_candles(candles, self.strategy_interval)
+                signal_data = self.strategy_signal(strategy_candles, self.strategy_params)
                 qty, avg = self.position(symbol)
                 price = self.market_price(symbol)
                 logging.info("%s bar=%s price=%.4f position=%.4f signal=%s trend_exit=%s", symbol, signal_data["bar"], price, qty, signal_data["long_signal"], signal_data["trend_exit"])

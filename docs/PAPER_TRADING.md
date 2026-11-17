@@ -2,7 +2,7 @@
 
 Paper execution is opt-in and forced through Moomoo `TrdEnv.SIMULATE`. The bot never selects a live trading environment. The competition bot loads the promoted credential-free strategy config when present, otherwise the tracked baseline, and keeps one position per symbol. Moomoo execution can still differ because its fills, session handling, and indicator engine are external to the deterministic Python evaluator.
 
-The paper bot hot-swaps both approved parameters and `scripts/strategy_57pct.py` code at a newly completed candle. A new module must expose the required strategy runtime contract; failed imports or incompatible code are rejected and the last working strategy remains active. No process restart is required for an approved structural strategy change.
+The paper bot hot-swaps approved parameters, the selected 10–70-minute interval, and `scripts/strategy_57pct.py` code at a newly completed candle. It receives validated 10-minute source bars and aggregates them locally when a higher interval is promoted. A new module must expose the required strategy runtime contract; failed imports or incompatible code are rejected and the last working strategy remains active. No process restart is required for an approved interval or structural strategy change.
 
 The bot monitors the complete US regular session: every completed 10-minute candle from the session start through the close is eligible for signal processing. It does not stop after a research window, a 15-session limit, or a partial-session slice. There is no strategy-level early-session entry cutoff or forced time-based exit; entries require the actual strategy signal, and exits require the configured risk, profit-capture, or trend/rule condition.
 

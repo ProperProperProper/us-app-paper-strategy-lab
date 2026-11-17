@@ -4,12 +4,12 @@ The lab uses a proposal-and-evaluation design:
 
 1. The US.APP runner loads the requested bounded candle window (90 calendar days by default) and splits it chronologically.
 2. Local and NVIDIA gateway workers, plus optional Antigravity, propose bounded mutations.
-3. The local evaluator scores every candidate.
+3. The local evaluator aggregates the 10-minute source candles into 10m, 20m, 30m, 40m, 50m, 60m, and 70m complete-session bars and scores every candidate on each interval.
 4. The runner performs a blind one-session walk-forward: it selects from the prior 21 sessions, then replays exactly the next complete session before advancing one session. Each round also includes explicit profit-capture strategy variants.
 5. The selected parameters are written to the local live-strategy JSON artifact.
 6. The browser console exposes process status and the latest run artifact.
 
-The evaluator, not a model, decides returns, drawdown, trade counts, chronology, and candidate metrics. Generated source is not executed as part of candidate evaluation. Fee-model support exists in the shared strategy engine, but the current mutation runner uses zero commission.
+The evaluator, not a model, decides returns, drawdown, trade counts, chronology, and candidate metrics. The base comparison is always a freshly rerun 10m baseline, but a candidate may win on a higher tested interval when its blind replay beats that 10m baseline. The promoted interval and strategy code are hot-swappable in the paper bot. Generated source is not executed as part of candidate evaluation. Fee-model support exists in the shared strategy engine, but the current mutation runner uses zero commission. Source and derived interval candles are persisted in SQLite.
 
 ## Main components
 
