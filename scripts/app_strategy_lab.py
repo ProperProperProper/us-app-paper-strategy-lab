@@ -112,6 +112,7 @@ def persist_interval_frames(db_path: Path, frame: pd.DataFrame) -> None:
             open REAL NOT NULL, high REAL NOT NULL, low REAL NOT NULL, close REAL NOT NULL,
             volume REAL, turnover REAL, source TEXT NOT NULL DEFAULT 'research',
             PRIMARY KEY (symbol, interval_minutes, time_key))""")
+        db.execute("DELETE FROM candles WHERE time_key < ?", ("2026-01-01T00:00:00",))
         for interval in RESEARCH_INTERVALS:
             derived = aggregate_candles(frame, interval)
             db.executemany(

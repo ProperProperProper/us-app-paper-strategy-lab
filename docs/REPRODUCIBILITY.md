@@ -30,7 +30,7 @@ The timestamps above are examples from one local cache. Use the timestamps recor
 
 ## Match the execution model
 
-Use the same symbol (`US.APP`), interval (`10m`), candle columns (`open`, `high`, `low`, `close`, `volume`), duplicate policy (deduplicate by `time_key`), a rolling 21-session training window, one unseen session per step, 2 bps slippage per side, zero commission, long-only position, and one-position limit. The active evaluator executes on completed-candle closes; it does not simulate next-open fills.
+Use the same symbol (`US.APP`), 10-minute source candles, and candle columns (`open`, `high`, `low`, `close`, `volume`). The interval research layer derives complete-session 10m, 20m, 30m, 40m, 50m, 60m, and 70m bars without crossing session boundaries. It deduplicates by `time_key`, uses a rolling 21-session training window, one unseen session per step, 2 bps slippage per side, zero commission, long-only position, and one-position limit. The base comparison is always the freshly rerun 10m baseline; a candidate may be promoted at a higher interval if its blind replay beats that baseline. The active evaluator executes on completed-candle closes; it does not simulate next-open fills.
 
 The 21-session training window and one-session test step are intentional: they prioritize the latest regime and expose changes one session at a time. Comparisons using another training window or test step are separate experiments.
 

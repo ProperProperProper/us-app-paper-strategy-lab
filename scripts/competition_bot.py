@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Moomoo paper-competition bot for the 10-minute Donchian/EMA baseline.
+"""Moomoo paper-competition bot for the promoted US.APP strategy.
 
 The bot is paper-only by construction: every order uses TrdEnv.SIMULATE.
 Order submission additionally requires --live-paper. Without that flag the
 bot prints signals and intended orders but never submits anything.
 
-Strategy:
+Strategy default:
   - 33 completed 10-minute bars for the Donchian breakout
   - EMA 17 / EMA 26 trend filter
   - long-only, one position per symbol
@@ -102,6 +102,7 @@ class CompetitionBot:
         self.state = self._load_state()
         self.strategy_module = None
         self.strategy_mtime = None
+        self.strategy_config_signature = None
         self.strategy_baseline = dict(BASELINE)
         self.strategy_signal = strategy_api.signal
         self.strategy_profit_capture_exit = profit_capture_exit
@@ -127,18 +128,33 @@ class CompetitionBot:
                     if interval not in RESEARCH_INTERVALS:
                         raise ValueError(f"unsupported live strategy interval: {interval}")
                     self.strategy_interval = interval
+                    self.strategy_config_signature = (str(path), path.stat().st_mtime_ns)
                     logging.info("loaded strategy config %s", path)
                     return {**self.strategy_baseline, **params}
             except (OSError, json.JSONDecodeError, TypeError):
                 continue
         logging.info("using tracked baseline strategy defaults")
+        self.strategy_config_signature = None
         return dict(self.strategy_baseline)
+
+    def _current_strategy_config_signature(self) -> tuple[str, int] | None:
+        for path in STRATEGY_CONFIG_PATHS:
+            if path.exists():
+                try:
+                    return str(path), path.stat().st_mtime_ns
+                except OSError:
+                    return None
+        return None
 
     def _refresh_strategy_code(self, force: bool = False) -> None:
         """Hot-reload strategy code/config; retain the last good runtime on error."""
         try:
             mtime = STRATEGY_SOURCE.stat().st_mtime_ns
             if not force and mtime == self.strategy_mtime:
+                signature = self._current_strategy_config_signature()
+                if signature != self.strategy_config_signature:
+                    self.strategy_params = self._load_strategy_params()
+                    logging.info("hot-swapped strategy config interval=%s params=%s", self.strategy_interval, self.strategy_params)
                 return
             module_name = f"paper_strategy_hot_{mtime}"
             spec = importlib.util.spec_from_file_location(module_name, STRATEGY_SOURCE)
@@ -371,13 +387,11 @@ class CompetitionBot:
         for symbol in self.symbols:
             try:
                 candles = self.candles(symbol)
+                self._refresh_strategy_code()
                 strategy_candles = self.strategy_aggregate_candles(candles, self.strategy_interval)
                 signal_data = self.strategy_signal(strategy_candles, self.strategy_params)
                 if self.state["last_bar"].get(symbol) == signal_data["bar"]:
                     continue
-                self._refresh_strategy_code()
-                strategy_candles = self.strategy_aggregate_candles(candles, self.strategy_interval)
-                signal_data = self.strategy_signal(strategy_candles, self.strategy_params)
                 qty, avg = self.position(symbol)
                 price = self.market_price(symbol)
                 logging.info("%s bar=%s price=%.4f position=%.4f signal=%s trend_exit=%s", symbol, signal_data["bar"], price, qty, signal_data["long_signal"], signal_data["trend_exit"])

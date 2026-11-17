@@ -23,7 +23,8 @@ def _json(value: Any) -> str:
     return json.dumps(value, default=str, sort_keys=True, allow_nan=False)
 
 
-def connect(path: Path = DB_PATH) -> sqlite3.Connection:
+def connect(path: Path | None = None) -> sqlite3.Connection:
+    path = path or DB_PATH
     db = sqlite3.connect(path, timeout=30)
     db.row_factory = sqlite3.Row
     db.execute("PRAGMA journal_mode=WAL")
@@ -91,8 +92,13 @@ def save_candles(frame: pd.DataFrame, symbol: str, interval_minutes: int, source
     try:
         rows = []
         for stamp, row in frame.iterrows():
+            normalized_stamp = pd.Timestamp(stamp)
+            if normalized_stamp.tzinfo is not None:
+                normalized_stamp = normalized_stamp.tz_localize(None)
+            if normalized_stamp < pd.Timestamp(MIN_CANDLE_DATE):
+                continue
             rows.append((
-                symbol, interval_minutes, pd.Timestamp(stamp).isoformat(),
+                symbol, interval_minutes, normalized_stamp.isoformat(),
                 float(row["open"]), float(row["high"]), float(row["low"]), float(row["close"]),
                 float(row["volume"]) if "volume" in row and pd.notna(row["volume"]) else None,
                 float(row["turnover"]) if "turnover" in row and pd.notna(row["turnover"]) else None,
