@@ -38,6 +38,10 @@ Hard rule: each decision uses every candle in the immediately preceding 21 compl
 
 Promotion is a separate decision from measurement: candidates are judged by the rolling one-session blind replay against the baseline replay. There is no chunked test gate.
 
+The paper execution process reloads approved strategy code and configuration at completed-candle boundaries. The active code/config commit and hot-swapped run identifier must be recorded when comparing paper results.
+
+Paper session coverage is the full US regular session represented by the Moomoo 10-minute candles; comparisons must not silently truncate the session or mix partial-session data.
+
 Every rejection artifact also contains a fresh baseline replay over the same rolling one-session sequence and full current window.
 
 Before comparing reports, record:

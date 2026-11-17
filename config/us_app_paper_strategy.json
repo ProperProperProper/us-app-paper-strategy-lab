@@ -1,0 +1,25 @@
+{
+  "symbol": "US.APP",
+  "interval": 10,
+  "mode": "SIMULATE",
+  "params": {
+    "lookback": 45,
+    "fast": 10,
+    "slow": 45,
+    "tp": 0.22,
+    "stop": 0.035,
+    "break_even_trigger": 0.025,
+    "break_even_lock": 0.008,
+    "profit_lock_trigger": 0.04,
+    "profit_lock": 0.02,
+    "trail_trigger": 0.05,
+    "trail_pct": 0.015,
+    "entry_filter": "slope",
+    "profit_exit_mode": "atr_peak_retrace",
+    "profit_arm_return": 0.03,
+    "profit_lock_return": 0.018,
+    "profit_atr_multiple": 1.5,
+    "profit_min_retrace": 0.01,
+    "exit_mode": "trend_cross"
+  }
+}

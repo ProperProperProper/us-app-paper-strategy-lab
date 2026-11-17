@@ -19,6 +19,7 @@ does not contain credentials or attempt to unlock a live account.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import logging
 import math
@@ -42,6 +43,7 @@ from moomoo import (
 
 from quant_storage import save_candles, save_execution_event
 from quant_api import BASELINE, audit_api, risk_api, strategy_api
+from strategy_57pct import profit_capture_exit
 
 
 POSITION_FRACTION = 0.95
@@ -49,6 +51,9 @@ POLL_SECONDS = 30
 MIN_BARS = 26 + 33 + 5
 STATE_PATH = Path(__file__).with_name("competition_bot_state.json")
 LOG_PATH = Path(__file__).with_name("competition_bot.log")
+ROOT = Path(__file__).resolve().parents[1]
+STRATEGY_CONFIG_PATHS = (ROOT / "paper_bot_live_strategy.json", ROOT / "config" / "us_app_paper_strategy.json")
+STRATEGY_SOURCE = Path(__file__).with_name("strategy_57pct.py")
 
 
 def setup_logging() -> None:
@@ -81,8 +86,6 @@ def code(symbol: str) -> str:
 
 class CompetitionBot:
     def __init__(self, symbols: list[str], acc_index: int, live_paper: bool, interval: int, acc_id: int | None = None) -> None:
-        if live_paper:
-            raise RuntimeError("Paper trading is disabled; tester-only mode is active")
         self.symbols = [code(s) for s in symbols]
         self.acc_index = acc_index
         self.acc_id = acc_id
@@ -94,12 +97,56 @@ class CompetitionBot:
         self.break_even_armed = False
         self.profit_lock_armed = False
         self.state = self._load_state()
+        self.strategy_module = None
+        self.strategy_mtime = None
+        self.strategy_baseline = dict(BASELINE)
+        self.strategy_signal = strategy_api.signal
+        self.strategy_profit_capture_exit = profit_capture_exit
+        self.strategy_params = dict(BASELINE)
+        self._refresh_strategy_code(force=True)
         self.quote = OpenQuoteContext(host="127.0.0.1", port=11111)
         self.trade = OpenSecTradeContext(
             filter_trdmarket=TrdMarket.US,
             host="127.0.0.1",
             port=11111,
         )
+
+    def _load_strategy_params(self) -> dict[str, Any]:
+        for path in STRATEGY_CONFIG_PATHS:
+            try:
+                payload = json.loads(path.read_text())
+                params = payload.get("params", payload)
+                if isinstance(params, dict):
+                    logging.info("loaded strategy config %s", path)
+                    return {**self.strategy_baseline, **params}
+            except (OSError, json.JSONDecodeError, TypeError):
+                continue
+        logging.info("using tracked baseline strategy defaults")
+        return dict(self.strategy_baseline)
+
+    def _refresh_strategy_code(self, force: bool = False) -> None:
+        """Hot-reload strategy code/config; retain the last good runtime on error."""
+        try:
+            mtime = STRATEGY_SOURCE.stat().st_mtime_ns
+            if not force and mtime == self.strategy_mtime:
+                return
+            module_name = f"paper_strategy_hot_{mtime}"
+            spec = importlib.util.spec_from_file_location(module_name, STRATEGY_SOURCE)
+            if spec is None or spec.loader is None:
+                raise ImportError("strategy source loader unavailable")
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            if not all(hasattr(module, name) for name in ("BASELINE", "strategy_signal", "profit_capture_exit")):
+                raise ImportError("strategy source missing required runtime contract")
+            self.strategy_module = module
+            self.strategy_mtime = mtime
+            self.strategy_baseline = dict(module.BASELINE)
+            self.strategy_signal = module.strategy_signal
+            self.strategy_profit_capture_exit = module.profit_capture_exit
+            self.strategy_params = self._load_strategy_params()
+            logging.info("hot-swapped strategy code mtime=%s params=%s", mtime, self.strategy_params)
+        except Exception as exc:
+            logging.exception("strategy hot-swap rejected; retaining last working code: %s", exc)
 
     def _load_state(self) -> dict[str, Any]:
         if STATE_PATH.exists():
@@ -185,9 +232,12 @@ class CompetitionBot:
     def tick(self) -> None:
         for symbol in self.symbols:
             try:
-                signal_data = strategy_api.signal(self.candles(symbol))
+                candles = self.candles(symbol)
+                signal_data = self.strategy_signal(candles, self.strategy_params)
                 if self.state["last_bar"].get(symbol) == signal_data["bar"]:
                     continue
+                self._refresh_strategy_code()
+                signal_data = self.strategy_signal(candles, self.strategy_params)
                 qty, avg = self.position(symbol)
                 price = self.market_price(symbol)
                 logging.info("%s bar=%s price=%.4f position=%.4f signal=%s trend_exit=%s", symbol, signal_data["bar"], price, qty, signal_data["long_signal"], signal_data["trend_exit"])
@@ -203,10 +253,12 @@ class CompetitionBot:
                         continue
 
                 if qty > 0:
-                    take_profit = price >= avg * (1 + float(BASELINE["tp"]))
-                    stop_loss = price <= avg * (1 - float(BASELINE["stop"]))
+                    self.peak_price = max(self.peak_price, price, avg)
+                    stop_loss = price <= avg * (1 - float(self.strategy_params["stop"]))
+                    take_profit = price >= avg * (1 + float(self.strategy_params["tp"]))
+                    indicator_exit = self.strategy_params.get("profit_exit_mode") == "atr_peak_retrace" and self.strategy_profit_capture_exit(price, avg, self.peak_price, float(signal_data.get("atr14", 0.0)), self.strategy_params)
                     session_exit = bool(signal_data["session_exit"])
-                    if take_profit or stop_loss or session_exit or signal_data["yellow_exit"] or signal_data["red_exit"]:
+                    if take_profit or stop_loss or indicator_exit or session_exit or signal_data["yellow_exit"] or signal_data["red_exit"] or signal_data["trend_exit"]:
                         self.submit(symbol, TrdSide.SELL, int(qty), "EXIT")
                         self.state["pending"][symbol] = "SELL"
                         self.peak_price = 0.0
@@ -267,7 +319,7 @@ def main() -> int:
     parser.add_argument("symbols", nargs="*", help="US symbols, e.g. AAPL NVDA; defaults to config only when supplied")
     parser.add_argument("--acc-index", type=int, default=0, help="SIMULATE US account index from --list-accounts")
     parser.add_argument("--interval", type=int, default=POLL_SECONDS)
-    parser.add_argument("--live-paper", action="store_true", help="Actually submit TrdEnv.SIMULATE orders")
+    parser.add_argument("--live-paper", action="store_true", help="Submit orders to the selected Moomoo SIMULATE account; never a live account")
     parser.add_argument("--list-accounts", action="store_true")
     args = parser.parse_args()
     setup_logging()
