@@ -34,6 +34,8 @@ Use the same symbol (`US.APP`), interval (`10m`), candle columns (`open`, `high`
 
 Promotion is a separate decision from measurement: a candidate must beat the baseline on validation, have at least three validation trades, and stay within one percentage point of the baseline's validation drawdown. The final test is not used for selection.
 
+Every rejection artifact also contains a fresh baseline replay on the same validation, final-test, and full current windows.
+
 Before comparing reports, record:
 
 - Git commit (`git rev-parse HEAD`)
