@@ -4,9 +4,9 @@
 
 An Apple Silicon quantitative trading research lab for US.APP 10-minute candles, Moomoo OpenD data, deterministic backtesting, chronological holdout validation, and AI-proposed strategy mutations.
 
-This repository is designed for paper-trading research and strategy experimentation. It does not enable live trading.
+This repository is designed for paper-trading research and strategy experimentation. It cannot select a live trading environment; paper orders require an explicit runtime flag and are forced through Moomoo `TrdEnv.SIMULATE`.
 
-The system is research-first: model output is a proposal, the deterministic evaluator is authoritative, and live order placement is disabled. Results are not financial advice or a guarantee of future performance.
+The system is research-first: model output is a proposal, the deterministic evaluator is authoritative, and paper order placement is opt-in. Results are not financial advice or a guarantee of future performance.
 
 **Keywords:** US.APP, Moomoo OpenD, paper trading, algorithmic trading, quantitative finance, backtesting, strategy mutation, AI agents, Apple Silicon, MLX, NVIDIA models, Antigravity, SQLite.
 

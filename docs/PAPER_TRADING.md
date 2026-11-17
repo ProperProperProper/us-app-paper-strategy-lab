@@ -34,4 +34,4 @@ python3 scripts/quant_dashboard.py
 open http://127.0.0.1:8780
 ```
 
-The dashboard caches candles and displays backtest and risk information. It does not place orders in this build.
+The legacy dashboard caches candles and displays backtest and risk information. Its paper-execution control is also forced through `TrdEnv.SIMULATE`; the current research console and direct bot command are the preferred continuous-lab interfaces.
