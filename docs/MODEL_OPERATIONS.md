@@ -4,12 +4,13 @@ The lab routes bounded research requests through local model services. Models pr
 
 ## Responsibilities
 
-- MLX provides the local controller, persistent learning boundary, memory recall, reflection, and fallback behavior.
-- NVIDIA workers provide bounded specialist proposals and research variations.
+- The local gateway provider supplies local-model proposals when configured.
+- NVIDIA workers provide bounded specialist proposals through the gateway.
+- Antigravity is an optional direct proposal worker invoked through its local CLI.
 - The local evaluator performs all scoring and safety checks.
 - Code-authority integrations are separate from proposal workers and must not bypass validation.
 
-The lab does not call NVIDIA directly from strategy code. The local gateway handles routing, allowlists, rate limits, telemetry, and fallback boundaries.
+The lab does not call NVIDIA directly from strategy code. The local gateway handles the provider request boundary. Gateway rate limits and telemetry are external to this repository; this runner does not implement a hosted-request scheduler.
 
 ## Supported proposal surface
 
@@ -17,4 +18,4 @@ Workers may suggest parameter changes, indicator specifications, whitelisted for
 
 ## Failure handling
 
-Provider failures, malformed outputs, timeouts, and rate limits are recorded as telemetry. The controller can fall back to local MLX behavior or deterministic evaluation, while the supervisor can restart stale child processes.
+Provider failures, malformed outputs, and timeouts are tolerated by continuing with locally generated candidates or the baseline. This repository does not provide a supervisor or automatic restart loop.

@@ -8,23 +8,23 @@ Models propose; deterministic Python code evaluates. This keeps scoring, fees, s
 
 ## Structured orchestration
 
-The controller decomposes work into bounded research tasks, delegates to specialist workers, aggregates results, validates outputs, records reflections, and persists memory for later cycles.
+The runner delegates bounded proposal requests to configured providers and aggregates their structured parameter proposals. It does not currently implement a persistent reflection or long-term learning store.
 
 ## Guarded experimentation
 
 Candidate strategies are represented as structured parameters, indicator specifications, or whitelisted formula trees. Arbitrary model-generated source is not executed during evaluation.
 
-## Walk-forward validation
+## Chronological holdout validation
 
-Data is kept chronological. Training selects candidates, validation checks generalisation, and the final test remains unseen until selection is complete. Session replay models the sequence of decisions rather than treating all candles as independent observations.
+Data is kept chronological. The current runner uses 60% training, 20% validation, and 20% final test data. It does not yet perform session-by-session strategy re-selection or full walk-forward replay in the mutation loop.
 
-## Persistent state and auditability
+## Run artifacts and auditability
 
-Run manifests, candidate results, provider telemetry, supervisor status, memory, and database events are persisted locally. Configuration and generated artifacts are excluded from the public repository.
+Candidate results, provider responses, status, and promoted strategy parameters are written to local run JSON files. Long-term learned memory, supervisor state, and database-backed mutation history are not implemented in this repository. Generated artifacts are excluded from the public repository.
 
-## Resilience
+## Failure handling
 
-The supervisor detects stale heartbeats, records failures, applies bounded restart backoff, and preserves the last completed summary. Provider errors and malformed responses are handled as explicit failure states with local fallback paths.
+Provider failures are caught at the proposal boundary and the deterministic baseline remains available. There is no in-repository supervisor or automatic restart loop in the current runner.
 
 ## Security boundaries
 

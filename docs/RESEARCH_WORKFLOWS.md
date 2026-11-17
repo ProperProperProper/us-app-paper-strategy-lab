@@ -7,7 +7,7 @@ python3 scripts/app_strategy_lab.py --db quant_dashboard.sqlite3 \
   --agents 2 --candidates 100 --providers local,nvidia,antigravity
 ```
 
-The loop follows `recall → observe → plan → delegate → evaluate → reflect → commit`. It persists memory, summaries, model telemetry, and promotion state locally.
+The loop generates bounded proposals, evaluates them on chronological holdout slices, and writes run summaries plus the promoted parameter file locally. It does not provide a persistent learning-memory store.
 
 ## Reports and artifacts
 

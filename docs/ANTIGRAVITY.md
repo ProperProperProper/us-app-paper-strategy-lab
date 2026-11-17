@@ -1,6 +1,6 @@
 # Google Antigravity integration
 
-Google Antigravity is connected locally through the existing Multi-Model AI Gateway using MCP.
+Google Antigravity can be used locally as an optional proposal worker for the US.APP mutation runner. The separate gateway/MCP integration is an external workspace dependency.
 
 ## What is connected
 
@@ -8,26 +8,18 @@ Google Antigravity is connected locally through the existing Multi-Model AI Gate
 - `gateway_chat` — sends bounded requests through the gateway’s existing provider allowlist.
 - `gateway_router_sample` — creates a reviewable routing example without changing data or strategy state.
 
-The strategy lab can also run Antigravity as a proposal-only optimizer worker
+The strategy lab runs Antigravity as a proposal-only optimizer worker
 (`--providers local,nvidia,antigravity`, one worker by default). It receives
 the measured profile and current parents, returns one bounded parameter
 mutation, and never supplies returns, trades, or validation. The local
 deterministic evaluator remains the only source of metrics and eligibility.
 
-Antigravity does not connect directly to NVIDIA, MLX, the strategy database, or the paper trader. The gateway remains the single routing boundary and the deterministic evaluator remains the authority for research results.
+The deterministic evaluator remains the authority for research results. Antigravity does not write strategy code, write the database, or submit paper orders.
 
 ## Local setup
 
-The workspace configuration is at:
-
-```text
-the local `.agents/mcp_config.json` configuration file
-```
-
-It starts the existing stdio MCP server and points it to `http://127.0.0.1:8788`.
-
-In Antigravity, reload MCP servers from the MCP manager after opening the `TradingSystem` workspace. The gateway must be running first.
+The optional gateway/MCP configuration is managed outside this repository. When using the gateway-backed local or NVIDIA providers, it must be running at the configured local endpoint before starting the lab.
 
 ## Safety boundary
 
-Antigravity is a development/research assistant only. It must not place live orders, alter the strategy evaluator, introduce future data, or treat model suggestions as performance evidence. Any proposed strategy change still has to pass the existing chronological research and audit process.
+Antigravity is a development/research proposal assistant only. It must not place orders, alter the evaluator, introduce future data, or supply performance metrics. Its proposals are constrained and then evaluated locally.

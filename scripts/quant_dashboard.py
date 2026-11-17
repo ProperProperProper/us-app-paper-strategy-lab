@@ -27,7 +27,7 @@ import pandas as pd
 from urllib.parse import urlparse
 
 from competition_bot import CompetitionBot
-from local_quant_tester import DEFAULTS, charts, run, stats as chart_stats
+from charting import charts
 from strategy_57pct import BASELINE, walk_forward_optimize, walk_forward_replay
 from strategy_57pct import stats as strategy_stats
 from moomoo import AuType, KLType, KL_FIELD, OpenQuoteContext, OpenSecTradeContext, RET_OK, TrdMarket
@@ -198,7 +198,7 @@ def do_backtest(payload: dict[str, Any], progress=None) -> dict[str, Any]:
         "trades": [asdict(t) for t in trades],
         "charts": images,
         "optimization": optimisation,
-        "note": "Strict walk-forward only: each parameter set was selected on earlier Moomoo candles and evaluated only on the following unseen fold. Completed-bar signals, next-bar-open fills, one long position." + (" No valid optimisation candidates met the minimum trade threshold." if not optimisation else ""),
+        "note": "Strict walk-forward only: each parameter set was selected on earlier Moomoo candles and evaluated only on the following unseen fold. Completed-bar signals, close-based fills with slippage, one long position." + (" No valid optimisation candidates met the minimum trade threshold." if not optimisation else ""),
     }
     global last_backtest
     last_backtest = response

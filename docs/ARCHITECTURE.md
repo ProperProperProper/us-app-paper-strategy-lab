@@ -2,20 +2,21 @@
 
 The lab uses a proposal-and-evaluation design:
 
-1. The controller recalls persistent memory and current runtime state.
-2. Specialist workers propose parameter candidates or bounded strategy variants.
-3. The local evaluator runs deterministic chronological tests.
-4. Validation gates reject weak, unsafe, malformed, or overfit candidates.
-5. Accepted results are recorded in SQLite and persistent research memory.
-6. The browser console exposes health, progress, failures, and fallback state.
+1. The US.APP runner loads the recent candle cache and splits it chronologically.
+2. Local and NVIDIA gateway workers, plus optional Antigravity, propose bounded mutations.
+3. The local evaluator scores every candidate.
+4. The runner selects the best training candidates, re-evaluates them on validation data, and evaluates the selected candidate on the final holdout.
+5. The selected parameters are written to the local live-strategy JSON artifact.
+6. The browser console exposes process status and the latest run artifact.
 
 The evaluator, not a model, decides returns, drawdown, fees, trade counts, chronology, and eligibility. Generated source is not executed as part of candidate evaluation.
 
 ## Main components
 
-- `scripts/multi_symbol_strategy_lab.py` — controller, workers, memory, and evaluation loop.
 - `scripts/app_strategy_lab.py` — US.APP mutation runner and promotion boundary.
 - `scripts/research_console.py` — local browser console and API.
+- `scripts/model_client.py` — MCP gateway client for local/NVIDIA proposals.
+- `scripts/agent_workers.py` — optional Antigravity proposal worker.
 - `scripts/strategy_57pct.py` — deterministic strategy and walk-forward primitives.
 - `scripts/quant_storage.py` — SQLite persistence.
 - `scripts/quant_api.py` — shared data, risk, strategy, and audit interfaces.
@@ -24,6 +25,6 @@ The evaluator, not a model, decides returns, drawdown, fees, trade counts, chron
 - `scripts/custom_indicator_engine.py` — bounded custom-indicator candidates.
 - `scripts/ml_strategy_engine.py` — bounded ML candidates.
 
-## Runtime safety
+## Current limitations
 
-The system is long-only, one-position, and paper/tester-only in this public build. Runtime artifacts remain outside Git and are subject to local health monitoring.
+The runner uses a 60% train / 20% validation / 20% test split. It does not re-select a strategy at every session boundary, run a supervisor, or persist learned memory in this repository. Runtime artifacts remain outside Git. The system is long-only, one-position, and paper/tester-only in this public build.

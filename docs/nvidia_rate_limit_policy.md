@@ -2,7 +2,7 @@
 
 Updated 2026-11-16.
 
-The lab uses three explicitly selected NVIDIA API Catalog model IDs:
+The external gateway may use NVIDIA API Catalog models such as:
 
 - `nvidia/nemotron-3.5-bolt-e4b`
 - `nvidia/nemotron-3.5-lightning-30b-a3b`
@@ -12,11 +12,12 @@ These are hosted NVIDIA endpoints, not local models. They must not be treated
 as unlimited. NVIDIA's public documentation does not publish one universal
 requests-per-minute or tokens-per-day quota for each API Catalog model. The
 effective ceiling is account/endpoint dependent and may change with demand.
-The lab therefore records observed per-model requests, successes, failures,
-HTTP status, latency, and local fallbacks in `runtime_status.json` and the web
-console.
+The external gateway should record observed per-model requests, successes,
+failures, HTTP status, latency, and fallbacks. The current repository records
+only the proposal results it receives; it does not implement a complete
+per-model rate-limit ledger.
 
-Safety controls currently applied:
+The external gateway may apply controls such as:
 
 - one shared hosted request at a time;
 - 30 seconds plus small jitter between hosted requests;
@@ -26,8 +27,9 @@ Safety controls currently applied:
 - compact prompts and a 1,000-token response ceiling;
 - no direct probing or retry storm while the continuous lab is running.
 
-The MLX model is local to this Mac and has no NVIDIA vendor quota. It is only
-limited by local compute, memory, and the lab's own concurrency controls.
+The local provider is subject to local compute and memory limits. The current
+US.APP runner does not implement a separate hosted-request scheduler; provider
+rate limiting and retry policy belong to the external gateway.
 
 NVIDIA's documentation confirms that hosted endpoints can return 429/503
 during demand spikes and recommends reducing concurrency and adding delays.
