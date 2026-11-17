@@ -72,7 +72,7 @@ def write_live_strategy(symbol: str, interval: int, params: dict, run_id: str) -
     return payload
 
 
-def load_frame(db_path: Path) -> pd.DataFrame:
+def load_frame(db_path: Path, lookback_days: int = 90) -> pd.DataFrame:
     with sqlite3.connect(db_path) as db:
         frame = pd.read_sql_query(
             """SELECT time_key, open, high, low, close, volume
@@ -83,7 +83,7 @@ def load_frame(db_path: Path) -> pd.DataFrame:
     if frame.empty:
         raise RuntimeError("No US.APP 10-minute candles in the Moomoo cache")
     frame = frame.drop_duplicates("time_key").set_index("time_key").sort_index()
-    frame = frame.loc[frame.index >= frame.index.max() - pd.Timedelta(days=30)]
+    frame = frame.loc[frame.index >= frame.index.max() - pd.Timedelta(days=max(1, int(lookback_days)))]
     return frame[["open", "high", "low", "close", "volume"]].astype(float)
 
 
@@ -200,14 +200,15 @@ def main() -> int:
     ap.add_argument("--rounds", type=int, default=20)
     ap.add_argument("--agents", type=int, default=2)
     ap.add_argument("--candidates", type=int, default=100)
+    ap.add_argument("--lookback-days", type=int, default=90)
     ap.add_argument("--providers", default="antigravity")
     ap.add_argument("--continuous", action="store_true")
     args = ap.parse_args()
     providers = [x.strip() for x in args.providers.split(",") if x.strip()]
-    frame = load_frame(args.db)
+    frame = load_frame(args.db, args.lookback_days)
     train_end, validation_end = int(len(frame) * .60), int(len(frame) * .80)
     train, validation, test = frame.iloc[:train_end], frame.iloc[train_end:validation_end], frame.iloc[validation_end:]
-    profile = {"symbol": "US.APP", "interval": "10m", "rows": len(frame), "start": str(frame.index.min()), "end": str(frame.index.max()), "train_rows": len(train), "validation_rows": len(validation), "test_rows": len(test)}
+    profile = {"symbol": "US.APP", "interval": "10m", "rows": len(frame), "start": str(frame.index.min()), "end": str(frame.index.max()), "lookback_days": int(args.lookback_days), "train_rows": len(train), "validation_rows": len(validation), "test_rows": len(test)}
     run_dir = args.run_dir / ("APP-" + time.strftime("%Y%m%d-%H%M%S"))
     run_dir.mkdir(parents=True, exist_ok=True)
     stop_file = run_dir / "STOP"
