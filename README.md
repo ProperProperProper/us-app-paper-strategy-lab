@@ -1,10 +1,14 @@
-# US.APP Strategy Research Lab
+# US.APP Paper Strategy Research Lab
 
 <img width="1164" height="701" alt="Screenshot 2026-11-17 at 4 37 43 PM" src="https://github.com/user-attachments/assets/9a8a46eb-fc9d-49bd-a23b-9d07f04c14cf" />
 
-Local research and paper-trading tools for US.APP market data on macOS Apple Silicon.
+An Apple Silicon quantitative trading research lab for US.APP 10-minute candles, Moomoo OpenD data, deterministic backtesting, chronological holdout validation, and AI-proposed strategy mutations.
+
+This repository is designed for paper-trading research and strategy experimentation. It does not enable live trading.
 
 The system is research-first: model output is a proposal, the deterministic evaluator is authoritative, and live order placement is disabled. Results are not financial advice or a guarantee of future performance.
+
+**Keywords:** US.APP, Moomoo OpenD, paper trading, algorithmic trading, quantitative finance, backtesting, strategy mutation, AI agents, Apple Silicon, MLX, NVIDIA models, Antigravity, SQLite.
 
 ## Quick start
 
