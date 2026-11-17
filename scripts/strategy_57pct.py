@@ -358,14 +358,14 @@ def walk_forward_replay(candles, fold_results, capital=100000.0, allocation=ALLO
 def blind_session_walk_forward(candles, candidates, capital=100_000.0,
                                allocation=ALLOCATION, slippage_bps=2.0,
                                commission=0.0, min_train_sessions=21,
+                               test_sessions=15,
                                fee_model=None):
-    """Select on prior sessions, then replay exactly one unseen session.
+    """Select on prior sessions, then replay the next unseen 15-session block.
 
-    Each session is flat at its boundary so a candidate cannot carry a
-    position selected with knowledge of a later session. Indicators receive
-    the prior history plus the current session, while evaluation starts at
-    the current session's first candle. The selector never sees the current
-    session before choosing its parameters.
+    Each test block is exactly ``test_sessions`` complete sessions wherever
+    the data permits. The selector never sees a block before choosing its
+    parameters. Blocks are session-flat so a position cannot leak across a
+    selection boundary.
     """
     frame = candles.sort_index()
     sessions = list(frame.index.normalize().drop_duplicates())
@@ -374,11 +374,13 @@ def blind_session_walk_forward(candles, candidates, capital=100_000.0,
     records = []
     replay_capital = float(capital)
     all_trades = []
-    for index in range(int(min_train_sessions), len(sessions)):
+    block_size = max(1, int(test_sessions))
+    # Do not score a short trailing block: every reported test is exactly the
+    # requested number of complete sessions.
+    for index in range(int(min_train_sessions), len(sessions) - block_size + 1, block_size):
         session_start = sessions[index]
-        session_end = sessions[index]
-        if index + 1 < len(sessions):
-            session_end = sessions[index + 1]
+        block_end_index = min(index + block_size, len(sessions))
+        session_end = sessions[block_end_index] if block_end_index < len(sessions) else sessions[-1] + pd.Timedelta(days=1)
         train = frame.loc[frame.index.normalize() < session_start]
         current = frame.loc[(frame.index.normalize() >= session_start) & (frame.index.normalize() < session_end)]
         if train.empty or current.empty:
@@ -398,6 +400,6 @@ def blind_session_walk_forward(candles, candidates, capital=100_000.0,
         if len(returns):
             replay_capital *= float(np.prod(1 + returns))
         all_trades.extend(trades)
-        records.append({"session": str(session_start.date()), "train_end": str(train.index[-1]), "selected_params": selected, "train_stats": train_stats, "unseen_session_stats": session_stats})
+        records.append({"test_block_start": str(session_start.date()), "test_block_end": str(current.index.normalize().max().date()), "test_sessions": int(current.index.normalize().nunique()), "train_end": str(train.index[-1]), "selected_params": selected, "train_stats": train_stats, "unseen_block_stats": session_stats})
     aggregate = stats(all_trades, {"equity": pd.DataFrame()}, capital) if all_trades else {"starting_capital": capital, "ending_equity": capital, "total_return_pct": 0.0, "trades": 0}
-    return {"status": "OK", "train_sessions": int(min_train_sessions), "replayed_sessions": len(records), "aggregate": aggregate, "ending_capital": round(replay_capital, 2), "records": records}
+    return {"status": "OK", "train_sessions": int(min_train_sessions), "test_sessions_per_block": block_size, "replayed_blocks": len(records), "replayed_sessions": sum(row["test_sessions"] for row in records), "aggregate": aggregate, "ending_capital": round(replay_capital, 2), "records": records}

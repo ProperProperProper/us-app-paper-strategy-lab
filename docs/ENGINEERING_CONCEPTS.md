@@ -16,7 +16,7 @@ Candidate strategies are represented as structured parameters, indicator specifi
 
 ## Chronological holdout validation
 
-Data is kept chronological. The fixed 60% training, 20% validation, and 20% final test data remains a diagnostic. The mutation loop also performs blind session walk-forward replay: it trains on at least 21 prior sessions, selects before the next session begins, and scores only that unseen session.
+Data is kept chronological. The runner trains on all sessions before a fixed 15-session final test set. The mutation loop also performs blind block walk-forward replay: it trains on at least 21 prior sessions, selects before each 15-session test block, and scores only that unseen block.
 
 ## Adversarial agent roles
 

@@ -7,7 +7,9 @@ python3 scripts/app_strategy_lab.py --db quant_dashboard.sqlite3 \
   --agents 2 --candidates 100 --providers local,nvidia,antigravity
 ```
 
-The loop defaults to 90 calendar days and generates bounded proposals, evaluates them on chronological train/validation/test slices, and writes run summaries plus the promoted parameter file locally. It does not provide a persistent learning-memory store.
+The loop defaults to 90 calendar days and generates bounded proposals, evaluates them on chronological training data and a final 15-session unseen test, and writes run summaries plus the promoted parameter file locally. It does not provide a persistent learning-memory store.
+
+The final test is deliberately limited to 15 complete sessions. This is a regime-focused decision window: it emphasizes the latest market behavior so the selected strategy is maximized for current conditions, while still replaying enough sessions to expose whether the idea survives more than one isolated candle. Blind walk-forward tests only complete 15-session blocks; an incomplete trailing block is excluded. It is an adaptation trade-off, not a guarantee of future performance.
 
 ## Required research protocol
 
@@ -21,11 +23,11 @@ Every strategy investigation follows this order:
 6. Promote a candidate only after it improves the relevant holdout evidence; a high full-window result alone is not sufficient.
 
 Agents may propose hypotheses, but the local deterministic evaluator is the only authority for fills, returns, drawdown, trade count, and promotion.
-Agent prompts include deterministic data evidence for the active window: exact timestamps, candle and session counts, endpoint prices, raw close-to-close movement, and baseline train/validation/test metrics. Agents must ground challenges in that evidence and may not invent trades or performance.
+Agent prompts include deterministic data evidence for the active window: exact timestamps, candle and session counts, endpoint prices, raw close-to-close movement, and baseline training/final-test metrics. Agents must ground challenges in that evidence and may not invent trades or performance.
 
 ## Agent challenge loop
 
-Agents are intentionally given opposing responsibilities. An explorer proposes a falsifiable idea; a critic tries to break it through benchmark mismatch, leakage, regime dependence, and overfitting; a risk reviewer tests drawdown and causal execution; and the coordinator rejects unsupported claims before local evaluation. Each agent must state the failure mode and the evidence that would disprove its proposal. A candidate is research output only after the deterministic evaluator checks it; a candidate is promotion material only after chronological validation and final-test evidence.
+Agents are intentionally given opposing responsibilities. An explorer proposes a falsifiable idea; a critic tries to break it through benchmark mismatch, leakage, regime dependence, and overfitting; a risk reviewer tests drawdown and causal execution; and the coordinator rejects unsupported claims before local evaluation. Each agent must state the failure mode and the evidence that would disprove its proposal. A candidate is research output only after the deterministic evaluator checks it; a candidate is promotion material only after the final unseen test and blind session replay.
 
 ## Reports and artifacts
 

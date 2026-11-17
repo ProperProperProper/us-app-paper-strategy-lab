@@ -30,11 +30,13 @@ The timestamps above are examples from one local cache. Use the timestamps recor
 
 ## Match the execution model
 
-Use the same symbol (`US.APP`), interval (`10m`), candle columns (`open`, `high`, `low`, `close`, `volume`), duplicate policy (deduplicate by `time_key`), 60/20/20 chronological split by complete sessions, 2 bps slippage per side, zero commission, long-only position, and one-position limit. The active evaluator executes on completed-candle closes; it does not simulate next-open fills.
+Use the same symbol (`US.APP`), interval (`10m`), candle columns (`open`, `high`, `low`, `close`, `volume`), duplicate policy (deduplicate by `time_key`), all available pre-test sessions for training, the final 15 complete sessions for out-of-sample testing, 2 bps slippage per side, zero commission, long-only position, and one-position limit. The active evaluator executes on completed-candle closes; it does not simulate next-open fills.
 
-Promotion is a separate decision from measurement: a candidate must beat the baseline on the same final-test slice, have at least three final-test trades, and stay within one percentage point of the baseline's final-test drawdown. The fixed validation slice remains diagnostic, while blind session replay is the live-like evidence report.
+The final 15-session window is intentional and must not be silently expanded: it prioritizes the latest regime so strategy selection is adapted to current conditions. Blind walk-forward comparisons use only complete 15-session test blocks; an incomplete trailing block is excluded. Comparisons using another test-window length are separate experiments.
 
-Every rejection artifact also contains a fresh baseline replay on the same validation, final-test, and full current windows.
+Promotion is a separate decision from measurement: a candidate must beat the baseline on the same final 15-session test slice, have at least three final-test trades, and stay within one percentage point of the baseline's final-test drawdown. Blind replay uses 15-session test blocks and is the live-like evidence report.
+
+Every rejection artifact also contains a fresh baseline replay on the same final-test and full current windows.
 
 Before comparing reports, record:
 
