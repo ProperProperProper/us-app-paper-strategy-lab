@@ -25,7 +25,7 @@ live orders are enabled.
 Start the local console from this repository:
 
 ```sh
-python3 research_console.py
+python3 scripts/research_console.py
 open http://127.0.0.1:8790
 ```
 
@@ -104,12 +104,12 @@ The 2 bps figure is an execution assumption, not a guarantee. Results depend on 
 - `scripts/multi_symbol_strategy_lab.py` — deterministic evaluator, MLX
   controller, bounded NVIDIA workers, memory, and runtime telemetry.
 - `scripts/continuous_daily_research.py` — repeatable daily research wrapper.
-- `research_console.py` — local browser console and API.
+- `scripts/research_console.py` — local browser console and API.
 - `scripts/download_asx_daily_yfinance.py` — rate-aware daily OHLCV downloader.
-- `advanced_research_engine.py`, `causal_formula_engine.py`,
-  `custom_indicator_engine.py`, and `ml_strategy_engine.py` — bounded,
+- `scripts/advanced_research_engine.py`, `scripts/causal_formula_engine.py`,
+  `scripts/custom_indicator_engine.py`, and `scripts/ml_strategy_engine.py` — bounded,
   data-gated research components.
-- `strategy_57pct.py`, `competition_bot.py`, and `quant_dashboard.py` — older
+- `scripts/strategy_57pct.py`, `scripts/competition_bot.py`, and `scripts/quant_dashboard.py` — older
   research/paper-trading utilities retained for reference; live order placement
   is disabled.
 
@@ -205,19 +205,19 @@ are recorded in SQLite; the downloader does not alter the dashboard database.
 
 ## Moomoo paper-competition bot
 
-`competition_bot.py` is retained as an execution boundary, but paper execution
+`scripts/competition_bot.py` is retained as an execution boundary, but paper execution
 is currently hard-disabled while the tester is being validated.
 
 Start Moomoo OpenD and log in, then identify the US paper account index:
 
 ```sh
-python3 competition_bot.py --list-accounts
+python3 scripts/competition_bot.py --list-accounts
 ```
 
 Run a signal-only check:
 
 ```sh
-python3 competition_bot.py AAPL NVDA --acc-index 0
+python3 scripts/competition_bot.py AAPL NVDA --acc-index 0
 ```
 
 The dashboard and CLI reject paper-order startup in the current tester-only
@@ -225,11 +225,11 @@ build. No order path is enabled.
 
 ## Moomoo Quant Dashboard
 
-`quant_dashboard.py` combines the tester, optimizer, charts, and trade list in
+`scripts/quant_dashboard.py` combines the tester, optimizer, charts, and trade list in
 one local dashboard. Paper execution controls are hidden and disabled:
 
 ```sh
-python3 quant_dashboard.py
+python3 scripts/quant_dashboard.py
 open http://127.0.0.1:8780
 ```
 
@@ -245,10 +245,10 @@ this build.
 To generate the local Quant-style report:
 
 ```sh
-python3 BBI_5m_Backtest/local_quant_tester.py \\
+python3 scripts/local_quant_tester.py \\
   --csv /path/to/CDA_daily.csv --symbol CDA --optimize
 open local_quant_report/report.html
 ```
 
-`BBI_5m_Backtest/local_quant_tester.py` is a legacy standalone report tool;
-the supported multi-symbol console is `research_console.py` on port 8790.
+`scripts/local_quant_tester.py` is a legacy standalone report tool;
+the supported multi-symbol console is `scripts/research_console.py` on port 8790.

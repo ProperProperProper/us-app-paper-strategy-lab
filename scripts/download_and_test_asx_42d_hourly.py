@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT.parent / "asx-cda-5h-breakout-backtester"))
 from moomoo_fees import moomoo_au_asx_fee
-from strategy import BASELINE, run, stats
+from strategy_57pct import BASELINE, run, stats
 
 SYMBOLS = "CDA BHP CBA CSL WES RIO FMG GMG WOW ALL AMC ANZ NAB WBC MQG TCL CPU REA WTC XRO CAR SEK RMD MIN NXT STO S32 QAN COL TWE".split()
 APP_PARAMS = {

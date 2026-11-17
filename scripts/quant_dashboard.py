@@ -7,7 +7,7 @@ with TrdEnv.SIMULATE only; it refuses accounts that are not reported as
 SIMULATE by OpenD.
 
 Run:
-    python3 quant_dashboard.py
+    python3 scripts/quant_dashboard.py
 Then open http://127.0.0.1:8780.
 """
 
@@ -27,7 +27,7 @@ import pandas as pd
 from urllib.parse import urlparse
 
 from competition_bot import CompetitionBot
-from BBI_5m_Backtest.local_quant_tester import DEFAULTS, charts, run, stats as chart_stats
+from local_quant_tester import DEFAULTS, charts, run, stats as chart_stats
 from strategy_57pct import BASELINE, walk_forward_optimize, walk_forward_replay
 from strategy_57pct import stats as strategy_stats
 from moomoo import AuType, KLType, KL_FIELD, OpenQuoteContext, OpenSecTradeContext, RET_OK, TrdMarket

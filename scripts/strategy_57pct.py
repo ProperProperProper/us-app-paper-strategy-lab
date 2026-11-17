@@ -1,6 +1,6 @@
 """Exact local implementation of the GitHub 10-minute winner.
 
-Source model: BBI_5m_Backtest/donchian_ema_10m_baseline_backtest.py
+Source model: the local Donchian/EMA baseline research implementation.
 Winner: lookback 33, EMA 17/26, TP 2.74%, stop 13.24%.
 """
 from __future__ import annotations
