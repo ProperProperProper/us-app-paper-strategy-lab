@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from strategy_57pct import BASELINE, required_warmup_candles, run, stats
 from custom_indicator_engine import run_custom
-from australian_super_fees import australian_super_member_direct_fee
+from moomoo_fees import moomoo_au_asx_fee
 from scan_codan_intervals import aggregate, load as load_view
 
 
@@ -114,7 +114,7 @@ def candidate(rng: random.Random, parent: dict[str, Any] | None = None) -> dict[
 def evaluate(frame, params):
     """Score one run only when the imitation has enough causal warm-up history."""
     required = required_warmup_candles(params)
-    _, trades, data=run(frame,params,200000,.95,2,0,fee_model=australian_super_member_direct_fee)
+    _, trades, data=run(frame,params,200000,.95,2,0,fee_model=moomoo_au_asx_fee)
     result=stats(trades,data,200000)
     result["status"] = "FULL_WARMUP" if len(frame) >= required else "LIMITED_CACHE_WARMUP"
     result["available_warmup_candles"] = len(frame)

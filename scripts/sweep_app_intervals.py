@@ -138,7 +138,7 @@ def evaluate_formula_candidate(frame: pd.DataFrame, spec: dict) -> dict:
         "selection_score": round(result["total_return_pct"] - 0.35 * abs(result["max_drawdown_pct"]), 4),
         "drawdown_limit_pct": MAX_DRAWDOWN_PCT,
         "minimum_trades": MIN_TRADES,
-        "brokerage": "AustralianSuper Member Direct",
+        "brokerage": "Moomoo AU ASX transaction brokerage",
         "administration_fee_included": False,
     })
     result["risk_eligible"] = (
@@ -334,7 +334,7 @@ def main() -> int:
         "reference_history": "42 five-hour candles = 210 hourly bars",
         "max_candles_by_interval": {f"{n}H": candle_limit_for_interval(n) for n in range(1, 7)},
         "capital": CAPITAL, "slippage_bps_per_side": SLIPPAGE_BPS,
-        "brokerage": "AustralianSuper Member Direct", "administration_fee_included": False,
+        "brokerage": "Moomoo AU ASX transaction brokerage", "administration_fee_included": False,
         "results": results,
     }
     output = run_dir / "summary.json"

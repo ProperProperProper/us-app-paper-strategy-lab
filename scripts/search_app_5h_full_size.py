@@ -2,7 +2,7 @@
 """Search causal app-parity 5H candidates on the local hourly cache.
 
 This is research-only: it does not alter the Android active profile. It uses
-full balance, AustralianSuper brokerage, 2bp slippage, one position, and
+full balance, Moomoo AU ASX transaction brokerage, 2bp slippage, one position, and
 completed 5H candles built from the same six-hour ASX session convention.
 """
 from __future__ import annotations
@@ -12,7 +12,7 @@ from datetime import datetime
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from australian_super_fees import australian_super_member_direct_fee
+from moomoo_fees import moomoo_au_asx_fee
 
 ROOT = Path(__file__).resolve().parents[1]
 DB = ROOT / "data/asx_hourly_yfinance_42d.sqlite3"
@@ -64,7 +64,7 @@ def evaluate(candles, p):
             exit_rule = (red if p["exit"] == "slow_break" else (red or yellow) if p["exit"] == "fast_or_slow" else fast[i] < slow[i])
             reason = "TP" if price >= position["entry"] * (1 + p["tp"]) else "STOP" if price <= stop else "RULE" if exit_rule else None
             if reason:
-                exit_price = price * (1 - .0002); fee = australian_super_member_direct_fee(position["qty"] * exit_price)
+                exit_price = price * (1 - .0002); fee = moomoo_au_asx_fee(position["qty"] * exit_price)
                 net = (exit_price - position["entry"]) * position["qty"] - position["entry_fee"] - fee
                 cash += position["qty"] * exit_price - fee; trades.append(net); position = None
         prior = max(high[max(0, i - p["lookback"]):i]) if i >= p["lookback"] else None
@@ -79,11 +79,11 @@ def evaluate(candles, p):
         if position is None and entry and filter_ok:
             entry_price = price * (1 + .0002); qty = math.floor(cash / entry_price)
             if qty > 0:
-                fee = australian_super_member_direct_fee(qty * entry_price); cash -= qty * entry_price + fee
+                fee = moomoo_au_asx_fee(qty * entry_price); cash -= qty * entry_price + fee
                 position = {"entry": entry_price, "qty": qty, "entry_fee": fee, "peak": entry_price, "be": False, "pl": False}
         mark = cash + (position["qty"] * price if position else 0); peak = max(peak, mark); equity.append(mark)
     if position:
-        exit_price = close[-1] * (1 - .0002); fee = australian_super_member_direct_fee(position["qty"] * exit_price)
+        exit_price = close[-1] * (1 - .0002); fee = moomoo_au_asx_fee(position["qty"] * exit_price)
         trades.append((exit_price - position["entry"]) * position["qty"] - position["entry_fee"] - fee); cash += position["qty"] * exit_price - fee; equity[-1] = cash
     dd = min((v / max(equity[:i + 1]) - 1) for i, v in enumerate(equity)) if equity else 0.0
     return {"pnl_aud": round(cash - CAPITAL, 2), "drawdown_pct": round(dd * 100, 2), "trades": len(trades), "eligible": len(trades) >= 1 and abs(dd * 100) <= 6.0}
@@ -103,7 +103,7 @@ def search(symbol, seed=20261115, candidates=20000):
     return {"symbol": symbol, "candles": len(candles), "candidates": candidates, "top": results[:25], "eligible_count": sum(x["stats"]["eligible"] for x in results)}
 
 if __name__ == "__main__":
-    report = {"capital_aud": CAPITAL, "allocation": 1.0, "slippage_bps": 2, "fees": "AustralianSuper Member Direct brokerage; no admin fee", "results": [search("CSL"), search("TWE", seed=20261116)]}
+    report = {"capital_aud": CAPITAL, "allocation": 1.0, "slippage_bps": 2, "fees": "Moomoo AU ASX transaction brokerage brokerage; no admin fee", "results": [search("CSL"), search("TWE", seed=20261116)]}
     OUT.parent.mkdir(parents=True, exist_ok=True); OUT.write_text(json.dumps(report, indent=2))
     for item in report["results"]:
         print(item["symbol"], item["candles"], "candles", "eligible", item["eligible_count"])

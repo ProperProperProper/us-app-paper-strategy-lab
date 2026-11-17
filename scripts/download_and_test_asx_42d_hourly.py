@@ -21,7 +21,7 @@ import yfinance as yf
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT.parent / "asx-cda-5h-breakout-backtester"))
-from australian_super_fees import australian_super_member_direct_fee
+from moomoo_fees import moomoo_au_asx_fee
 from strategy import BASELINE, run, stats
 
 SYMBOLS = "CDA BHP CBA CSL WES RIO FMG GMG WOW ALL AMC ANZ NAB WBC MQG TCL CPU REA WTC XRO CAR SEK RMD MIN NXT STO S32 QAN COL TWE".split()
@@ -125,13 +125,13 @@ def main() -> int:
         if len(five) < 2:
             print(f"{symbol:4s} hourly={len(raw):4d} 5h={len(five):3d} insufficient")
             continue
-        _, trades_base, data_base = run(five, dict(BASELINE), 200_000, .95, 2, 0, fee_model=australian_super_member_direct_fee)
-        _, trades_app, data_app = run(five, dict(APP_PARAMS), 200_000, .95, 2, 0, fee_model=australian_super_member_direct_fee)
+        _, trades_base, data_base = run(five, dict(BASELINE), 200_000, .95, 2, 0, fee_model=moomoo_au_asx_fee)
+        _, trades_app, data_app = run(five, dict(APP_PARAMS), 200_000, .95, 2, 0, fee_model=moomoo_au_asx_fee)
         row = {"symbol": symbol, "hourly_rows": len(raw), "five_hour_rows": len(five), "start": str(five.index.min()), "end": str(five.index.max()), "research_baseline": stats(trades_base, data_base, 200_000), "app_cda_parameters": stats(trades_app, data_app, 200_000)}
         report_rows.append(row)
         print(f"{symbol:4s} hourly={len(raw):4d} 5h={len(five):3d} baseline={row['research_baseline']['total_return_pct']:7.2f}% app={row['app_cda_parameters']['total_return_pct']:7.2f}% trades={row['app_cda_parameters']['trades']}", flush=True)
     db.close()
-    report = {"source": "Yahoo Finance chart endpoint via yfinance", "window_days": args.days, "symbols_tested": len(report_rows), "symbols": symbols, "base_interval": "1h", "effective_interval": "5h", "session_hours_used": "10:00-14:00 Australia/Sydney", "final_session_hours_discarded": "15:00-16:00", "starting_capital_per_symbol": 200_000, "allocation": .95, "slippage_bps_per_side": 2, "brokerage": "AustralianSuper Member Direct", "annual_admin_fee_included": False, "warning": "42-day limited-cache run; the app-style strategy is not fully warmed when 137 five-hour bars are unavailable.", "results": report_rows}
+    report = {"source": "Yahoo Finance chart endpoint via yfinance", "window_days": args.days, "symbols_tested": len(report_rows), "symbols": symbols, "base_interval": "1h", "effective_interval": "5h", "session_hours_used": "10:00-14:00 Australia/Sydney", "final_session_hours_discarded": "15:00-16:00", "starting_capital_per_symbol": 200_000, "allocation": .95, "slippage_bps_per_side": 2, "brokerage": "Moomoo AU ASX transaction brokerage", "annual_admin_fee_included": False, "warning": "42-day limited-cache run; the app-style strategy is not fully warmed when 137 five-hour bars are unavailable.", "results": report_rows}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2, default=str) + "\n")
     print(f"\nSaved {args.output}")

@@ -1,9 +1,19 @@
-"""Compatibility alias for the former fee module name."""
+"""Generic Moomoo AU/ASX transaction fee model for local research."""
 from __future__ import annotations
-
-from australian_super_fees import australian_super_member_direct_fee
 
 
 def moomoo_au_asx_fee(order_value_aud: float) -> float:
-    """Deprecated name; retained for old imports while using AustralianSuper fees."""
-    return australian_super_member_direct_fee(order_value_aud)
+    """Progressive transaction brokerage, rounded to cents.
+
+    The model is deliberately account-provider neutral: it represents only
+    transaction brokerage and does not include an account administration fee.
+    """
+    value = float(order_value_aud)
+    if value < 0:
+        raise ValueError("transaction value cannot be negative")
+    if value == 0:
+        return 0.0
+    fee = 10.0
+    fee += min(max(value - 12_500.0, 0.0), 37_500.0) * 0.0008
+    fee += max(value - 50_000.0, 0.0) * 0.0004
+    return round(fee + 1e-9, 2)

@@ -17,7 +17,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from strategy_57pct import BASELINE, optimize, run, stats
-from australian_super_fees import australian_super_member_direct_fee
+from moomoo_fees import moomoo_au_asx_fee
 from scan_codan_intervals import aggregate
 
 
@@ -102,11 +102,11 @@ def main() -> None:
     if args.optimize:
         optimization = optimize(candles, params, args.capital, args.allocation,
                                 args.slippage_bps, 0.0, trials=args.trials,
-                                fee_model=australian_super_member_direct_fee)
+                                fee_model=moomoo_au_asx_fee)
         if optimization:
             params.update(optimization[0]["params"])
     _, trades, data = run(candles, params, args.capital, args.allocation,
-                          args.slippage_bps, 0.0, fee_model=australian_super_member_direct_fee)
+                          args.slippage_bps, 0.0, fee_model=moomoo_au_asx_fee)
     stats_result = stats(trades, data, args.capital)
     result = {
         "source": source_meta,
@@ -116,7 +116,7 @@ def main() -> None:
         "trades": [t.__dict__ for t in trades],
         "optimization_top": optimization[:10],
         "warning": "Screen-reconstructed candles are estimates; use for research only.",
-        "fee_model": "AustralianSuper Member Direct transaction brokerage only: A$10 first A$12,500; 0.08% next A$37,500; 0.04% above A$50,000; no account administration fee",
+        "fee_model": "Moomoo AU ASX transaction brokerage transaction brokerage only: A$10 first A$12,500; 0.08% next A$37,500; 0.04% above A$50,000; no account administration fee",
     }
     args.report_dir.mkdir(parents=True, exist_ok=True)
     stem = f"cda_{args.bars}h_{args.view}"

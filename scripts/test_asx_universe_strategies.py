@@ -4,7 +4,7 @@
 This is deliberately a comparison harness, not an optimiser. It uses only
 completed daily candles from the local SQLite cache, the causal local strategy
 engine, A$200,000 per-symbol starting capital, 95% allocation, 2 bps slippage,
-and AustralianSuper Member Direct brokerage. The annual administration fee is
+and Moomoo AU ASX transaction brokerage brokerage. The annual administration fee is
 not included, matching the research configuration.
 
 Daily candles are not equivalent to the Android app's five-hour session
@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 import sys
 sys.path.insert(0, str(ROOT))
 
-from australian_super_fees import australian_super_member_direct_fee
+from moomoo_fees import moomoo_au_asx_fee
 from strategy_57pct import BASELINE, run, stats
 
 
@@ -75,10 +75,10 @@ def test_one(frame: pd.DataFrame, params: dict, capital: float) -> dict:
         capital=capital,
         allocation=0.95,
         slippage_bps=2.0,
-        fee_model=australian_super_member_direct_fee,
+        fee_model=moomoo_au_asx_fee,
     )
     result = stats(trades, data, capital)
-    result["brokerage_model"] = "AustralianSuper Member Direct"
+    result["brokerage_model"] = "Moomoo AU ASX transaction brokerage"
     result["administration_fee_included"] = False
     result["slippage_bps_per_side"] = 2.0
     result["allocation"] = 0.95
@@ -137,7 +137,7 @@ def main() -> int:
         "window_calendar_days": args.days,
         "execution": "signal on completed daily bar; entry at next available daily open",
         "costs": {
-            "brokerage": "AustralianSuper Member Direct progressive brokerage",
+            "brokerage": "Moomoo AU ASX transaction brokerage progressive brokerage",
             "administration_fee_included": False,
             "slippage_bps_per_side": 2.0,
         },

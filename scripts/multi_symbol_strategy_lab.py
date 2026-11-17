@@ -25,7 +25,7 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from australian_super_fees import australian_super_member_direct_fee
+from moomoo_fees import moomoo_au_asx_fee
 from strategy_57pct import BASELINE, required_warmup_candles, run, stats
 from mcp_strategy_lab import MCPClient, ONE_HOUR_WINNER, APP_IMITATION, safe_agent_review
 
@@ -244,13 +244,13 @@ def load_app_5h_frame(db_path: Path, symbol: str) -> pd.DataFrame:
 
 def evaluate(frame: pd.DataFrame, params: dict) -> dict:
     _, trades, data = run(frame, params, CAPITAL, ALLOCATION, SLIPPAGE_BPS, 0,
-                          fee_model=australian_super_member_direct_fee)
+                          fee_model=moomoo_au_asx_fee)
     result = stats(trades, data, CAPITAL)
     result.update({
         "warmup_status": "FULL_WARMUP" if len(frame) >= required_warmup_candles(params) else "LIMITED_CACHE_WARMUP",
         "required_warmup_candles": required_warmup_candles(params),
         "available_candles": len(frame),
-        "brokerage": "AustralianSuper Member Direct",
+        "brokerage": "Moomoo AU ASX transaction brokerage",
         "administration_fee_included": False,
     })
     score = result["total_return_pct"] - 0.35 * abs(result["max_drawdown_pct"])
@@ -1125,7 +1125,7 @@ def main() -> int:
                              symbol_index=symbol_index + 1, total_symbols=len(symbols), completed_symbols=len(all_results), result_status="COMPLETED",
                              memory_file=str(memory_file), memory_symbols=len(agentic_memory))
         print(f"{symbol:4s} train={candidates[0]['stats']['total_return_pct']:8.2f}% validation={selected['stats']['total_return_pct']:8.2f}% test={final['stats']['total_return_pct']:8.2f}% baseline_test={baseline_test['stats']['total_return_pct']:8.2f}% trades={final['stats']['trades']}", flush=True)
-    summary = {"status": "completed", "data_interval": args.interval, "research_years": args.years if args.interval == "1D" else None, "seed_summary": str(args.seed_summary) if args.seed_summary else None, "symbols_requested": symbols, "symbols_tested": len(all_results), "controller": "local_mlx", "agentic_loop": "recall -> observe -> plan -> delegate -> evaluate -> reflect -> commit", "memory_file": str(memory_file), "memory_symbols": len(agentic_memory), "local_search_agents": args.agents, "nvidia_models": NVIDIA_MODELS, "nvidia_min_interval_seconds": NVIDIA_MIN_INTERVAL_SECONDS, "nvidia_search_workers_per_symbol": args.nvidia_agents if "nvidia" in providers else 0, "antigravity_model": ANTIGRAVITY_MODEL if antigravity_worker else None, "antigravity_workers_per_symbol": args.antigravity_agents if antigravity_worker else 0, "nvidia_mutation_rounds": args.nvidia_rounds, "candidates_per_agent": args.candidates, "capital": CAPITAL, "allocation": ALLOCATION, "slippage_bps_per_side": SLIPPAGE_BPS, "brokerage": "AustralianSuper Member Direct", "administration_fee_included": False, "max_drawdown_pct": MAX_DRAWDOWN_PCT, "minimum_trades": MIN_TRADES, "selection": "hard DD/trade gate on train and validation -> highest test score only for the app cache; treat tiny splits as weak evidence", "results": all_results}
+    summary = {"status": "completed", "data_interval": args.interval, "research_years": args.years if args.interval == "1D" else None, "seed_summary": str(args.seed_summary) if args.seed_summary else None, "symbols_requested": symbols, "symbols_tested": len(all_results), "controller": "local_mlx", "agentic_loop": "recall -> observe -> plan -> delegate -> evaluate -> reflect -> commit", "memory_file": str(memory_file), "memory_symbols": len(agentic_memory), "local_search_agents": args.agents, "nvidia_models": NVIDIA_MODELS, "nvidia_min_interval_seconds": NVIDIA_MIN_INTERVAL_SECONDS, "nvidia_search_workers_per_symbol": args.nvidia_agents if "nvidia" in providers else 0, "antigravity_model": ANTIGRAVITY_MODEL if antigravity_worker else None, "antigravity_workers_per_symbol": args.antigravity_agents if antigravity_worker else 0, "nvidia_mutation_rounds": args.nvidia_rounds, "candidates_per_agent": args.candidates, "capital": CAPITAL, "allocation": ALLOCATION, "slippage_bps_per_side": SLIPPAGE_BPS, "brokerage": "Moomoo AU ASX transaction brokerage", "administration_fee_included": False, "max_drawdown_pct": MAX_DRAWDOWN_PCT, "minimum_trades": MIN_TRADES, "selection": "hard DD/trade gate on train and validation -> highest test score only for the app cache; treat tiny splits as weak evidence", "results": all_results}
     (run_dir / "summary.json").write_text(json.dumps(summary, indent=2, default=str) + "\n")
     print(f"\nSaved {run_dir / 'summary.json'}")
     if client:
