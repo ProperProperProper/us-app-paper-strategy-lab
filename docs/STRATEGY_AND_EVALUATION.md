@@ -31,4 +31,8 @@ Historical results are evidence from a specific dataset and execution model, not
 
 ## Candidate types
 
-The current US.APP runner proposes bounded parameter mutations. The formula and ML engines remain reusable components, but are not automatically invoked by the US.APP runner. Arbitrary generated code is not executed.
+The current US.APP runner proposes bounded parameter and strategy-variant mutations. In addition to entry and risk parameters, agents explicitly investigate profit-capture exits: take-profit distance, break-even protection, profit locks, trailing stops, and the exit rule (`fast_or_slow`, `slow_break`, or `trend_cross`). These variants are evaluated by the same deterministic train/validation/test gates; they do not replace the baseline automatically. The formula and ML engines remain reusable components, but are not automatically invoked by the US.APP runner. Arbitrary generated code is not executed.
+
+The current research question is whether a profit-capture exit can retain more of a large trend than the baseline's earlier exit rules while protecting accrued gains and avoiding materially higher drawdown. This is a hypothesis under investigation, not an established exit recommendation. Buy-and-hold has only one trade over a window and is therefore a benchmark, not strong evidence of a safe exit policy.
+
+Every mutation round deterministically evaluates a fixed set of profit-exit hypotheses, including wider targets paired with break-even/profit-lock/trailing protection and slower exit rules. Proposal agents are instructed to consider the same profit-capture question, while the local evaluator remains the sole source of performance results.

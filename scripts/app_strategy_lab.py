@@ -41,6 +41,24 @@ from model_client import MCPClient
 from agent_workers import AntigravityOptimizer
 
 
+# Explicit research hypotheses ensure every round tests whether the current
+# exit is giving up too much of a sustained move. These focus on profit
+# capture: target size, break-even protection, profit locks, and trailing
+# stops. They are evaluated locally alongside agent proposals; none is
+# promoted without the normal holdout gate.
+PROFIT_EXIT_RESEARCH_VARIANTS = (
+    {"tp": 0.08, "break_even_trigger": 0.02, "profit_lock_trigger": 0.06, "profit_lock": 0.01, "trail_trigger": 0.05, "trail_pct": 0.02},
+    {"tp": 0.1069, "break_even_trigger": 0.02, "profit_lock_trigger": 0.08, "profit_lock": 0.01, "trail_trigger": 0.06, "trail_pct": 0.02},
+    {"tp": 0.15, "break_even_trigger": 0.03, "profit_lock_trigger": 0.08, "profit_lock": 0.02, "trail_trigger": 0.08, "trail_pct": 0.025},
+    {"tp": 0.20, "break_even_trigger": 0.03, "profit_lock_trigger": 0.10, "profit_lock": 0.03, "trail_trigger": 0.10, "trail_pct": 0.03},
+    {"tp": 0.30, "break_even_trigger": 0.04, "profit_lock_trigger": 0.12, "profit_lock": 0.04, "trail_trigger": 0.12, "trail_pct": 0.04},
+    {"tp": 0.50, "break_even_trigger": 0.05, "profit_lock_trigger": 0.15, "profit_lock": 0.05, "trail_trigger": 0.15, "trail_pct": 0.05},
+    {"exit_mode": "slow_break", "tp": 0.15, "break_even_trigger": 0.03, "profit_lock_trigger": 0.08, "profit_lock": 0.02, "trail_trigger": 0.08, "trail_pct": 0.025},
+    {"exit_mode": "slow_break", "tp": 0.30, "break_even_trigger": 0.04, "profit_lock_trigger": 0.12, "profit_lock": 0.04, "trail_trigger": 0.12, "trail_pct": 0.04},
+    {"exit_mode": "trend_cross", "tp": 0.20, "break_even_trigger": 0.03, "profit_lock_trigger": 0.10, "profit_lock": 0.03, "trail_trigger": 0.10, "trail_pct": 0.03},
+)
+
+
 def write_live_strategy(symbol: str, interval: int, params: dict, run_id: str) -> dict:
     path = ROOT / "paper_bot_live_strategy.json"
     payload = {"symbol": symbol, "interval": int(interval), "params": dict(params),
@@ -83,6 +101,8 @@ def mutate(rng: random.Random, parent: dict | None = None) -> dict:
     params["slow"] = max(params["fast"] + 2, min(200, int(round(base["slow"] + rng.gauss(0, 12)))))
     params["tp"] = round(max(.02, min(.50, base["tp"] + rng.gauss(0, .03))), 4)
     params["stop"] = round(max(.01, min(.25, base["stop"] + rng.gauss(0, .02))), 4)
+    if rng.random() < .30:
+        params["exit_mode"] = rng.choice(("fast_or_slow", "slow_break", "trend_cross"))
     if rng.random() < .35:
         params["entry_filter"] = rng.choice(("none", "atr", "slope", "volume"))
     return params
@@ -101,7 +121,7 @@ def parse_proposal(text: str) -> dict | None:
             value = [value]
         if isinstance(value, list):
             for item in value:
-                allowed = {"lookback", "fast", "slow", "tp", "stop", "break_even_trigger", "break_even_lock", "profit_lock_trigger", "profit_lock", "trail_trigger", "trail_pct", "entry_filter", "atr_buffer", "volume_median_period"}
+                allowed = {"lookback", "fast", "slow", "tp", "stop", "break_even_trigger", "break_even_lock", "profit_lock_trigger", "profit_lock", "trail_trigger", "trail_pct", "entry_filter", "atr_buffer", "volume_median_period", "exit_mode"}
                 if isinstance(item, dict) and any(key in item for key in allowed):
                     try:
                         result = {}
@@ -112,6 +132,7 @@ def parse_proposal(text: str) -> dict | None:
                             if key in item: result[key] = round(max(low, min(high, float(item[key]))), 4)
                         if item.get("entry_filter") in {"none", "atr", "slope", "volume"}: result["entry_filter"] = item["entry_filter"]
                         if "volume_median_period" in item: result["volume_median_period"] = max(2, min(120, int(item["volume_median_period"])))
+                        if item.get("exit_mode") in {"fast_or_slow", "slow_break", "trend_cross"}: result["exit_mode"] = item["exit_mode"]
                         return result
                     except (TypeError, ValueError):
                         return None
@@ -124,7 +145,11 @@ def ask_agent(client: MCPClient | None, antigravity: AntigravityOptimizer | None
         "The active strategy is a causal US.APP 10-minute Donchian breakout with EMA trend filtering and close-based execution. "
         "Propose exactly one bounded JSON strategy mutation. You may change "
         "lookback (integer 5-120), fast EMA (2-30), slow EMA (10-200), tp (0.02-0.50), "
-        "stop (0.01-0.25), or entry_filter (none, atr, slope, volume). "
+        "stop (0.01-0.25), break-even/profit-lock/trailing-stop thresholds, "
+        "entry_filter (none, atr, slope, volume), or exit_mode "
+        "(fast_or_slow, slow_break, trend_cross). Explicitly consider whether "
+        "the exit captures a large profit while protecting an already-profitable "
+        "position; do not use time-based exits as a substitute for profit capture. "
         "These are the only safe strategy configuration keys. NVIDIA may suggest; "
         "Antigravity is the only authority allowed to turn a suggestion into a "
         "locally tested configuration. Do not invent performance claims. "
@@ -202,6 +227,7 @@ def main() -> int:
             with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, args.agents)) as pool:
                 jobs = [pool.submit(lambda seed: [evaluate(train, mutate(random.Random(seed), random.choice(parents))) for _ in range(args.candidates)], 900000 + round_number * 100 + i) for i in range(args.agents)]
                 candidates = [item for job in jobs for item in job.result()]
+            candidates.extend(evaluate(train, {**BASELINE, **variant}) for variant in PROFIT_EXIT_RESEARCH_VARIANTS)
             nvidia_proposals = []
             if client:
                 for agent in range(max(1, args.agents)):
