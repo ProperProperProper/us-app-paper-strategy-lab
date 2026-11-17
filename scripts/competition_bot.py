@@ -350,6 +350,12 @@ class CompetitionBot:
         # subscribed feed; merge it by timestamp so it repairs the cache and
         # preserves only validated, deduplicated bars.
         live_ret, live_data = self.quote.get_cur_kline(symbol, MIN_BARS, KLType.K_10M)
+        if live_ret != RET_OK and "subscribe" in str(live_data).lower():
+            # OpenD can reconnect while the local subscription set still says
+            # the symbol is subscribed. Re-register once and retry recovery.
+            self.quote_subscribed.discard(symbol)
+            self._ensure_live_candle_subscription(symbol)
+            live_ret, live_data = self.quote.get_cur_kline(symbol, MIN_BARS, KLType.K_10M)
         if live_ret == RET_OK and isinstance(live_data, pd.DataFrame) and not live_data.empty:
             live = self._clean_candles(live_data)
             data = self._clean_candles(pd.concat([data, live], ignore_index=True))
