@@ -32,6 +32,8 @@ The timestamps above are examples from one local cache. Use the timestamps recor
 
 Use the same symbol (`US.APP`), interval (`10m`), candle columns (`open`, `high`, `low`, `close`, `volume`), duplicate policy (deduplicate by `time_key`), 60/20/20 chronological split, 2 bps slippage per side, zero commission, long-only position, and one-position limit. The active evaluator executes on completed-candle closes; it does not simulate next-open fills.
 
+Promotion is a separate decision from measurement: a candidate must beat the baseline on validation, have at least three validation trades, and stay within one percentage point of the baseline's validation drawdown. The final test is not used for selection.
+
 Before comparing reports, record:
 
 - Git commit (`git rev-parse HEAD`)
@@ -41,3 +43,17 @@ Before comparing reports, record:
 - Slippage, commission, and allocation
 
 Results from different candle snapshots or commits must be reported as different experiments, not merged into one performance claim.
+
+## Included snapshot
+
+The repository includes `data/us_app_10m_2026-08-18_2026-11-16.csv` and its manifest. It is a sanitized 90-day OHLCV snapshot with no account information. Verify its SHA-256 against the manifest, then run against the fixed timestamps above. The snapshot is the comparison dataset; Moomoo OpenD is only needed to obtain newer data or create another explicitly identified experiment.
+
+To create a new explicitly identified snapshot from a local cache:
+
+```sh
+python3 scripts/export_candle_snapshot.py \
+  --db quant_dashboard.sqlite3 \
+  --output data/us_app_10m_NEW.csv \
+  --start 'YYYY-MM-DD HH:MM:SS' \
+  --end 'YYYY-MM-DD HH:MM:SS'
+```

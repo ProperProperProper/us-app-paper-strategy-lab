@@ -21,7 +21,10 @@ paper_bot_live_strategy.json
 logs/
 reports/
 strategy_lab_runs/
-data/
+data/*
+!data/
 .venv-thomas/
 target/
 *.csv
+!data/us_app_10m_2026-08-18_2026-11-16.csv
+!data/us_app_10m_2026-08-18_2026-11-16.manifest.json

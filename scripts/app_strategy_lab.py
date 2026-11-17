@@ -59,6 +59,8 @@ PROFIT_EXIT_RESEARCH_VARIANTS = (
     {"exit_mode": "slow_break", "profit_exit_mode": "atr_peak_retrace", "tp": 0.50, "profit_arm_return": 0.08, "profit_lock_return": 0.02, "profit_atr_multiple": 2.5, "profit_min_retrace": 0.03},
     {"exit_mode": "slow_break", "profit_exit_mode": "atr_peak_retrace", "tp": 0.50, "profit_arm_return": 0.12, "profit_lock_return": 0.04, "profit_atr_multiple": 3.0, "profit_min_retrace": 0.04},
 )
+MIN_PROMOTION_TRADES = 3
+MAX_PROMOTION_DRAWDOWN_DEGRADATION_PCT = 1.0
 
 
 def write_live_strategy(symbol: str, interval: int, params: dict, run_id: str) -> dict:
@@ -301,8 +303,19 @@ def main() -> int:
             validation_candidates.sort(key=lambda item: item["stats"]["selection_score"], reverse=True)
             selected = validation_candidates[0]
             final = evaluate(test, selected["params"])
-            promoted = write_live_strategy("US.APP", 10, selected["params"], f"APP-{run_dir.name}-r{round_number:03d}")
-            result = {"round": round_number, "profile": profile, "train_best": candidates[0], "selected_validation": selected, "final_test": final, "promoted": promoted, "agent_mutation": bool(client or antigravity), "proposal_provider": "nvidia" if client else None, "configuration_provider": "antigravity" if antigravity else None, "nvidia_proposals": nvidia_proposals}
+            baseline_validation = evaluate(validation, dict(BASELINE))
+            promotion_reasons = []
+            if selected["stats"]["trades"] < MIN_PROMOTION_TRADES:
+                promotion_reasons.append(f"validation_trades<{MIN_PROMOTION_TRADES}")
+            if selected["stats"]["selection_score"] <= baseline_validation["stats"]["selection_score"]:
+                promotion_reasons.append("validation_score_not_above_baseline")
+            if selected["stats"]["max_drawdown_pct"] < baseline_validation["stats"]["max_drawdown_pct"] - MAX_PROMOTION_DRAWDOWN_DEGRADATION_PCT:
+                promotion_reasons.append("validation_drawdown_too_deep")
+            if promotion_reasons:
+                promoted = {"status": "REJECTED", "params": dict(BASELINE), "reasons": promotion_reasons, "baseline_validation": baseline_validation["stats"]}
+            else:
+                promoted = write_live_strategy("US.APP", 10, selected["params"], f"APP-{run_dir.name}-r{round_number:03d}")
+            result = {"round": round_number, "profile": profile, "train_best": candidates[0], "selected_validation": selected, "baseline_validation": baseline_validation, "final_test": final, "promotion_gate": {"min_trades": MIN_PROMOTION_TRADES, "max_drawdown_degradation_pct": MAX_PROMOTION_DRAWDOWN_DEGRADATION_PCT}, "promoted": promoted, "agent_mutation": bool(client or antigravity), "proposal_provider": "nvidia" if client else None, "configuration_provider": "antigravity" if antigravity else None, "nvidia_proposals": nvidia_proposals}
             (run_dir / f"round-{round_number:03d}.json").write_text(json.dumps(result, indent=2, default=str) + "\n")
             write_status(status_file, {"state": "RUNNING", **result, "run_dir": str(run_dir)})
             print(json.dumps({"round": round_number, "train": candidates[0]["stats"], "validation": selected["stats"], "test": final["stats"], "promoted": promoted}), flush=True)

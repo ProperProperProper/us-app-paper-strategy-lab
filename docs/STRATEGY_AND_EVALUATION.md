@@ -27,7 +27,7 @@ Historical results are evidence from a specific dataset and execution model, not
 - Validation uses the next 20%; the final test uses the last 20%.
 - The current mutation runner does not perform session-by-session re-selection.
 - Slippage, position limits, duplicate trades, chronology, and drawdown are checked locally. The generic evaluator supports fee models, but the current mutation runner passes zero commission and no fee model.
-- A candidate cannot replace the baseline merely because it has a higher in-sample score.
+- A candidate cannot replace the baseline merely because it has a higher in-sample score. Promotion requires validation performance above the baseline, at least three validation trades, and no more than one percentage point of additional validation drawdown. The final test is reported as untouched evidence and is not used to select the candidate.
 
 ## Candidate types
 
