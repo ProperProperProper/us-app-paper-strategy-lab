@@ -49,7 +49,7 @@ from strategy_57pct import profit_capture_exit
 
 POSITION_FRACTION = 0.95
 POLL_SECONDS = 30
-MIN_BARS = 200
+MIN_BARS = 240
 MAX_CANDLE_LAG_MINUTES = 120
 STATE_PATH = Path(__file__).with_name("competition_bot_state.json")
 LOG_PATH = Path(__file__).with_name("competition_bot.log")
@@ -204,16 +204,32 @@ class CompetitionBot:
         ret, data, _ = self.quote.request_history_kline(
             symbol,
             ktype=KLType.K_10M,
-            max_count=MIN_BARS + 20,
+            max_count=MIN_BARS,
             extended_time=False,
         )
         if ret != RET_OK:
             raise RuntimeError(f"candle query failed for {symbol}: {data}")
-        latest = pd.to_datetime(data["time_key"]).max()
+        required = {"time_key", "open", "high", "low", "close", "volume"}
+        missing = required.difference(data.columns)
+        if missing:
+            raise RuntimeError(f"candle response missing columns: {sorted(missing)}")
+        data = data.copy()
+        data["time_key"] = pd.to_datetime(data["time_key"], errors="coerce")
+        if data["time_key"].isna().any():
+            raise RuntimeError("candle response contains invalid timestamps")
+        data = data.drop_duplicates("time_key", keep="last").sort_values("time_key")
+        numeric = data[["open", "high", "low", "close", "volume"]].apply(pd.to_numeric, errors="coerce")
+        finite = numeric.apply(lambda column: column.map(math.isfinite))
+        if numeric.isna().any().any() or not finite.all().all():
+            raise RuntimeError("candle response contains non-finite OHLCV values")
+        data[["open", "high", "low", "close", "volume"]] = numeric
+        if ((data["low"] > data[["open", "close", "high"]].min(axis=1)) | (data["high"] < data[["open", "close", "low"]].max(axis=1)) | (data["low"] <= 0) | (data["high"] <= 0)).any():
+            raise RuntimeError("candle response contains malformed OHLC ranges")
+        save_candles(data.set_index("time_key"), symbol, 10)
+        latest = data["time_key"].max()
         lag_minutes = (pd.Timestamp.now() - latest).total_seconds() / 60.0
         if lag_minutes > MAX_CANDLE_LAG_MINUTES:
             raise RuntimeError(f"stale candle data for {symbol}: latest={latest} lag_minutes={lag_minutes:.1f}")
-        save_candles(data.set_index("time_key"), symbol, 10)
         return data
 
     def submit(self, symbol: str, side: Any, qty: int, reason: str) -> None:
