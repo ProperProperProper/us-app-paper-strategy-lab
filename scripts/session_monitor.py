@@ -5,10 +5,12 @@ from __future__ import annotations
 import json
 import os
 import signal
+import socket
 import sqlite3
 import subprocess
 import sys
 import time
+from urllib.request import urlopen
 from datetime import datetime, time as clock_time
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -17,6 +19,8 @@ ROOT = Path(__file__).resolve().parents[1]
 PYTHON = sys.executable
 ET = ZoneInfo("America/New_York")
 LOG = ROOT / "scripts" / "session_monitor.log"
+MONITOR_STARTED = time.time()
+HANDLED_FAULTS: set[str] = set()
 
 
 def log(message: str) -> None:
@@ -74,12 +78,47 @@ def start(command: list[str], label: str) -> None:
 
 def ensure_processes() -> None:
     keep_one("scripts/app_strategy_lab.py")
+    keep_one("scripts/research_console.py")
+    keep_one("scripts/competition_bot.py")
     if not processes("scripts/app_strategy_lab.py"):
         start([PYTHON, "scripts/app_strategy_lab.py", "--db", "quant_dashboard.sqlite3", "--run-dir", "strategy_lab_runs", "--agents", "2", "--candidates", "100", "--providers", "local,nvidia,antigravity", "--continuous"], "strategy lab")
     if not processes("scripts/research_console.py"):
         start([PYTHON, "scripts/research_console.py"], "research console")
     if not processes("scripts/competition_bot.py"):
         start([PYTHON, "scripts/competition_bot.py", "US.APP", "--acc-id", str(account_id()), "--interval", "30", "--live-paper"], "paper bot")
+
+
+def recent_runtime_fault(path: Path) -> str | None:
+    if not path.exists() or path.stat().st_mtime < MONITOR_STARTED:
+        return None
+    try:
+        lines = path.read_text(errors="replace").splitlines()[-80:]
+    except OSError:
+        return None
+    for line in reversed(lines):
+        if "Traceback (most recent call last)" in line or " ERROR " in f" {line} ":
+            return line[-240:]
+    return None
+
+
+def check_open_d() -> None:
+    with socket.create_connection(("127.0.0.1", 11111), timeout=2):
+        pass
+
+
+def check_console() -> None:
+    with urlopen("http://127.0.0.1:8790/api/state", timeout=3) as response:
+        if response.status != 200:
+            raise RuntimeError(f"research console HTTP {response.status}")
+        payload = json.loads(response.read())
+    if not payload.get("running"):
+        raise RuntimeError("research console reports not running")
+
+
+def restart_process(pattern: str, label: str) -> None:
+    for pid, _ in processes(pattern):
+        log(f"restarting {label} after runtime fault pid={pid}")
+        stop(pid)
 
 
 def code_is_newer_than_process(pattern: str, paths: list[Path]) -> bool:
@@ -104,7 +143,14 @@ def health_check() -> None:
         for pid, _ in processes("scripts/competition_bot.py"):
             log(f"restarting bot for newer source pid={pid}")
             stop(pid)
+    bot_fault = recent_runtime_fault(ROOT / "scripts" / "competition_bot.log")
+    if bot_fault and bot_fault not in HANDLED_FAULTS:
+        HANDLED_FAULTS.add(bot_fault)
+        log(f"paper bot fault detected: {bot_fault}")
+        restart_process("scripts/competition_bot.py", "paper bot")
     ensure_processes()
+    check_open_d()
+    check_console()
     for db_path in (ROOT / "quant_dashboard.sqlite3", ROOT / "scripts" / "quant_dashboard.sqlite3"):
         with sqlite3.connect(db_path) as db:
             if db.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
@@ -112,8 +158,11 @@ def health_check() -> None:
             if db.execute("SELECT count(*) FROM candles WHERE time_key < '2026-01-01T00:00:00'").fetchone()[0]:
                 raise RuntimeError(f"pre-2026 candle data detected: {db_path}")
     state = ROOT / "strategy_lab_runs" / "app_runtime_status.json"
-    if state.exists() and json.loads(state.read_text()).get("state") not in {"RUNNING", "STOPPED"}:
-        raise RuntimeError("invalid strategy lab runtime state")
+    if state.exists():
+        lab_state = json.loads(state.read_text()).get("state")
+        if lab_state not in {"RUNNING", "STOPPED"}:
+            restart_process("scripts/app_strategy_lab.py", "strategy lab")
+            raise RuntimeError(f"invalid strategy lab runtime state: {lab_state}")
 
 
 def main() -> int:
