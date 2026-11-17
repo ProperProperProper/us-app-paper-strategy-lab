@@ -27,4 +27,4 @@ The evaluator, not a model, decides returns, drawdown, trade counts, chronology,
 
 ## Current limitations
 
-The runner uses rolling blind replay: after 21 complete training sessions, it selects before the next session and replays exactly one unseen session, advancing one session at a time to the end of the data. There are no fixed validation partitions or multi-session test blocks. The system does not run a supervisor or persist learned memory in this repository. Runtime artifacts remain outside Git. The system is long-only, one-position, and paper/tester-only in this public build.
+The runner uses rolling blind replay as a hard rule: it uses every candle in the immediately preceding 21 complete sessions, selects before the next session, and replays exactly one unseen session, advancing one session at a time to the end of the data. No full-window score, fixed validation partition, or multi-session test block is used for decisions. The system does not run a supervisor or persist learned memory in this repository. Runtime artifacts remain outside Git. The system is long-only, one-position, and paper/tester-only in this public build.

@@ -62,6 +62,7 @@ PROFIT_EXIT_RESEARCH_VARIANTS = (
 )
 MIN_PROMOTION_TRADES = 3
 MAX_PROMOTION_DRAWDOWN_DEGRADATION_PCT = 1.0
+ROLLING_TRAIN_SESSIONS = 21
 
 
 def write_live_strategy(symbol: str, interval: int, params: dict, run_id: str) -> dict:
@@ -103,8 +104,8 @@ def load_frame(db_path: Path, lookback_days: int = 90, start: str | None = None,
 
 def evaluate(frame: pd.DataFrame, params: dict) -> dict:
     effective = {**BASELINE, **params}
-    _, trades, data = run(frame, effective, 100_000.0, 1.0, 2.0, 0.0)
-    result = stats(trades, data, 100_000.0)
+    replay = blind_session_walk_forward(frame, [effective], min_train_sessions=ROLLING_TRAIN_SESSIONS)
+    result = dict(replay.get("aggregate", {"total_return_pct": 0.0, "max_drawdown_pct": 0.0, "trades": 0}))
     result["selection_score"] = round(result["total_return_pct"] - 0.35 * abs(result["max_drawdown_pct"]), 4)
     return {"params": effective, "stats": result}
 
@@ -243,7 +244,7 @@ def main() -> int:
         "current_window": evaluate(frame, dict(BASELINE))["stats"]
     }
     blind_candidates = [dict(BASELINE)] + [{**BASELINE, **variant} for variant in PROFIT_EXIT_RESEARCH_VARIANTS]
-    blind_evidence = blind_session_walk_forward(frame, blind_candidates, min_train_sessions=21)
+    blind_evidence = blind_session_walk_forward(frame, blind_candidates, min_train_sessions=ROLLING_TRAIN_SESSIONS)
     profile = {
         "symbol": "US.APP", "interval": "10m", "rows": len(frame),
         "start": str(frame.index.min()), "end": str(frame.index.max()),
@@ -309,8 +310,8 @@ def main() -> int:
             candidates.sort(key=lambda item: item["stats"]["selection_score"], reverse=True)
             parents = [item["params"] for item in candidates[:max(2, args.agents)]]
             selected = candidates[0]
-            candidate_blind = blind_session_walk_forward(frame, [selected["params"]], min_train_sessions=21)
-            baseline_blind = blind_session_walk_forward(frame, [dict(BASELINE)], min_train_sessions=21)
+            candidate_blind = blind_session_walk_forward(frame, [selected["params"]], min_train_sessions=ROLLING_TRAIN_SESSIONS)
+            baseline_blind = blind_session_walk_forward(frame, [dict(BASELINE)], min_train_sessions=ROLLING_TRAIN_SESSIONS)
             final = {"params": selected["params"], "stats": candidate_blind["aggregate"]}
             baseline_final_test = {"params": dict(BASELINE), "stats": baseline_blind["aggregate"]}
             baseline_current_window = evaluate(frame, dict(BASELINE))
@@ -325,7 +326,7 @@ def main() -> int:
                 promoted = {"status": "REJECTED", "params": dict(BASELINE), "reasons": promotion_reasons, "decision_basis": "final_test_vs_baseline_final_test", "baseline_final_test": baseline_final_test["stats"], "baseline_current_window": baseline_current_window["stats"]}
             else:
                 promoted = write_live_strategy("US.APP", 10, selected["params"], f"APP-{run_dir.name}-r{round_number:03d}")
-            result = {"round": round_number, "profile": profile, "train_best": candidates[0], "selected_train": selected, "candidate_blind_replay": candidate_blind, "baseline_blind_replay": baseline_blind, "baseline_final_test": baseline_final_test, "baseline_current_window": baseline_current_window, "final_test": final, "promotion_gate": {"decision_basis": "rolling_one_session_blind_replay_vs_baseline", "train_sessions": 21, "test_step_sessions": 1, "min_trades": MIN_PROMOTION_TRADES, "max_drawdown_degradation_pct": MAX_PROMOTION_DRAWDOWN_DEGRADATION_PCT}, "promoted": promoted, "agent_mutation": bool(client or antigravity), "proposal_provider": "nvidia" if client else None, "configuration_provider": "antigravity" if antigravity else None, "nvidia_proposals": nvidia_proposals}
+            result = {"round": round_number, "profile": profile, "train_best": candidates[0], "selected_train": selected, "candidate_blind_replay": candidate_blind, "baseline_blind_replay": baseline_blind, "baseline_final_test": baseline_final_test, "baseline_current_window": baseline_current_window, "final_test": final, "promotion_gate": {"hard_rule": "all_candles_in_immediately_preceding_21_complete_sessions_then_one_unseen_session", "decision_basis": "rolling_one_session_blind_replay_vs_baseline", "train_sessions": ROLLING_TRAIN_SESSIONS, "test_step_sessions": 1, "min_trades": MIN_PROMOTION_TRADES, "max_drawdown_degradation_pct": MAX_PROMOTION_DRAWDOWN_DEGRADATION_PCT}, "promoted": promoted, "agent_mutation": bool(client or antigravity), "proposal_provider": "nvidia" if client else None, "configuration_provider": "antigravity" if antigravity else None, "nvidia_proposals": nvidia_proposals}
             (run_dir / f"round-{round_number:03d}.json").write_text(json.dumps(result, indent=2, default=str) + "\n")
             write_status(status_file, {"state": "RUNNING", **result, "run_dir": str(run_dir)})
             print(json.dumps({"round": round_number, "train": candidates[0]["stats"], "final_test": final["stats"], "promoted": promoted}), flush=True)

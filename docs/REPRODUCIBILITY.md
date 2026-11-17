@@ -34,6 +34,8 @@ Use the same symbol (`US.APP`), interval (`10m`), candle columns (`open`, `high`
 
 The 21-session training window and one-session test step are intentional: they prioritize the latest regime and expose changes one session at a time. Comparisons using another training window or test step are separate experiments.
 
+Hard rule: each decision uses every candle in the immediately preceding 21 complete sessions, then tests exactly the next unseen session. The training window advances one session at a time until the current data end. There are no full-window scores, fixed validation slices, or multi-session test chunks.
+
 Promotion is a separate decision from measurement: candidates are judged by the rolling one-session blind replay against the baseline replay. There is no chunked test gate.
 
 Every rejection artifact also contains a fresh baseline replay over the same rolling one-session sequence and full current window.
