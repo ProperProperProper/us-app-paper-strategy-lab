@@ -11,6 +11,7 @@ import argparse
 import concurrent.futures
 import importlib.util
 import json
+import os
 import random
 import sqlite3
 import sys
@@ -67,24 +68,23 @@ def load_frame(db_path: Path) -> pd.DataFrame:
 
 
 def evaluate(frame: pd.DataFrame, params: dict) -> dict:
-    _, trades, data = run(frame, params, 100_000.0, 1.0, 2.0, 0.0)
+    effective = {**BASELINE, **params}
+    _, trades, data = run(frame, effective, 100_000.0, 1.0, 2.0, 0.0)
     result = stats(trades, data, 100_000.0)
     result["selection_score"] = round(result["total_return_pct"] - 0.35 * abs(result["max_drawdown_pct"]), 4)
-    return {"params": dict(params), "stats": result}
+    return {"params": effective, "stats": result}
 
 
 def mutate(rng: random.Random, parent: dict | None = None) -> dict:
     base = dict(BASELINE) if parent is None else {**BASELINE, **parent}
-    params = {
-        "grid_lookback": max(5, min(120, int(round(base["grid_lookback"] + rng.gauss(0, 8))))),
-        "grid_intervals": 4,
-        "entry_mode": base.get("entry_mode", "any_grid_cross"),
-        "exit_mode": base.get("exit_mode", "any_grid_cross_down"),
-    }
+    params = dict(base)
+    params["lookback"] = max(5, min(120, int(round(base["lookback"] + rng.gauss(0, 8)))))
+    params["fast"] = max(2, min(30, int(round(base["fast"] + rng.gauss(0, 3)))))
+    params["slow"] = max(params["fast"] + 2, min(200, int(round(base["slow"] + rng.gauss(0, 12)))))
+    params["tp"] = round(max(.02, min(.50, base["tp"] + rng.gauss(0, .03))), 4)
+    params["stop"] = round(max(.01, min(.25, base["stop"] + rng.gauss(0, .02))), 4)
     if rng.random() < .35:
-        params["entry_mode"] = rng.choice(("any_grid_cross", "top_breakout", "upper_half_cross", "lower_half_cross"))
-    if rng.random() < .35:
-        params["exit_mode"] = rng.choice(("any_grid_cross_down", "top_breakdown", "bottom_breakdown", "lower_half_breakdown"))
+        params["entry_filter"] = rng.choice(("none", "atr", "slope", "volume"))
     return params
 
 
@@ -101,15 +101,17 @@ def parse_proposal(text: str) -> dict | None:
             value = [value]
         if isinstance(value, list):
             for item in value:
-                if isinstance(item, dict) and ("grid_lookback" in item or "entry_mode" in item or "exit_mode" in item):
+                allowed = {"lookback", "fast", "slow", "tp", "stop", "break_even_trigger", "break_even_lock", "profit_lock_trigger", "profit_lock", "trail_trigger", "trail_pct", "entry_filter", "atr_buffer", "volume_median_period"}
+                if isinstance(item, dict) and any(key in item for key in allowed):
                     try:
-                        result = {"grid_intervals": 4}
-                        if "grid_lookback" in item:
-                            result["grid_lookback"] = max(5, min(120, int(item["grid_lookback"])))
-                        if item.get("entry_mode") in {"any_grid_cross", "top_breakout", "upper_half_cross", "lower_half_cross"}:
-                            result["entry_mode"] = item["entry_mode"]
-                        if item.get("exit_mode") in {"any_grid_cross_down", "top_breakdown", "bottom_breakdown", "lower_half_breakdown"}:
-                            result["exit_mode"] = item["exit_mode"]
+                        result = {}
+                        if "lookback" in item: result["lookback"] = max(5, min(120, int(item["lookback"])))
+                        if "fast" in item: result["fast"] = max(2, min(30, int(item["fast"])))
+                        if "slow" in item: result["slow"] = max(result.get("fast", int(BASELINE["fast"])) + 2, min(200, int(item["slow"])))
+                        for key, low, high in (("tp", .02, .50), ("stop", .01, .25), ("break_even_trigger", .0, .20), ("break_even_lock", .0, .10), ("profit_lock_trigger", .0, .50), ("profit_lock", .0, .20), ("trail_trigger", .0, .50), ("trail_pct", .0, .30), ("atr_buffer", .0, 2.0)):
+                            if key in item: result[key] = round(max(low, min(high, float(item[key]))), 4)
+                        if item.get("entry_filter") in {"none", "atr", "slope", "volume"}: result["entry_filter"] = item["entry_filter"]
+                        if "volume_median_period" in item: result["volume_median_period"] = max(2, min(120, int(item["volume_median_period"])))
                         return result
                     except (TypeError, ValueError):
                         return None
@@ -119,18 +121,17 @@ def parse_proposal(text: str) -> dict | None:
 def ask_agent(client: MCPClient | None, antigravity: AntigravityOptimizer | None, provider: str, profile: dict, parents: list[dict], role: str, nvidia_proposals: list[dict] | None = None) -> dict | None:
     prompt = (
         "You are an independent mutation agent for the US.APP Moomoo paper bot. "
-        "The active strategy is a causal 10-minute candle-open price grid. "
+        "The active strategy is a causal US.APP 10-minute Donchian breakout with EMA trend filtering and close-based execution. "
         "Propose exactly one bounded JSON strategy mutation. You may change "
-        "grid_lookback (integer 5-120), entry_mode (any_grid_cross, top_breakout, "
-        "upper_half_cross, lower_half_cross), or exit_mode (any_grid_cross_down, "
-        "top_breakdown, bottom_breakdown, lower_half_breakdown). "
+        "lookback (integer 5-120), fast EMA (2-30), slow EMA (10-200), tp (0.02-0.50), "
+        "stop (0.01-0.25), or entry_filter (none, atr, slope, volume). "
         "These are the only safe strategy configuration keys. NVIDIA may suggest; "
         "Antigravity is the only authority allowed to turn a suggestion into a "
         "locally tested configuration. Do not invent performance claims. "
         f"Role: {role}. DATA PROFILE: {json.dumps(profile)} "
         f"PARENTS: {json.dumps(parents[:5])} "
         f"NVIDIA_PROPOSALS_FOR_CONTROLLER: {json.dumps(nvidia_proposals or [])} "
-        "Return JSON only, for example {\"grid_lookback\": 45}."
+        "Return JSON only, for example {\"lookback\": 40, \"fast\": 12, \"slow\": 30}."
     )
     try:
         if provider == "antigravity":
@@ -144,6 +145,19 @@ def write_status(path: Path, payload: dict) -> None:
     temporary = path.with_name(path.name + ".tmp")
     temporary.write_text(json.dumps(payload, indent=2, default=str) + "\n")
     temporary.replace(path)
+
+
+def mcp_server_path() -> Path:
+    configured = os.environ.get("MULTI_MODEL_MCP_SERVER")
+    candidates = [
+        Path(configured) if configured else None,
+        LAB_ROOT.parent / "multi-model-ai-gateway" / "ai" / "mcp_server.py",
+        LAB_ROOT.parent / "TradingSystem" / "multi-model-ai-gateway" / "ai" / "mcp_server.py",
+    ]
+    for candidate in candidates:
+        if candidate and candidate.exists():
+            return candidate
+    raise FileNotFoundError("MCP server not found; set MULTI_MODEL_MCP_SERVER")
 
 
 def main() -> int:
@@ -169,7 +183,7 @@ def main() -> int:
     antigravity = None
     if any(provider in {"local", "nvidia"} for provider in providers):
         try:
-            client = MCPClient(LAB_ROOT.parent / "multi-model-ai-gateway/ai/mcp_server.py", "http://127.0.0.1:8788")
+            client = MCPClient(mcp_server_path(), os.environ.get("MULTI_MODEL_GATEWAY_URL", "http://127.0.0.1:8788"))
         except Exception:
             pass
     if "antigravity" in providers:
