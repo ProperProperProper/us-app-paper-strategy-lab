@@ -30,7 +30,7 @@ The timestamps above are examples from one local cache. Use the timestamps recor
 
 ## Match the execution model
 
-Use the same symbol (`US.APP`), interval (`10m`), candle columns (`open`, `high`, `low`, `close`, `volume`), duplicate policy (deduplicate by `time_key`), 60/20/20 chronological split, 2 bps slippage per side, zero commission, long-only position, and one-position limit. The active evaluator executes on completed-candle closes; it does not simulate next-open fills.
+Use the same symbol (`US.APP`), interval (`10m`), candle columns (`open`, `high`, `low`, `close`, `volume`), duplicate policy (deduplicate by `time_key`), 60/20/20 chronological split by complete sessions, 2 bps slippage per side, zero commission, long-only position, and one-position limit. The active evaluator executes on completed-candle closes; it does not simulate next-open fills.
 
 Promotion is a separate decision from measurement: a candidate must beat the baseline on validation, have at least three validation trades, and stay within one percentage point of the baseline's validation drawdown. The final test is not used for selection.
 

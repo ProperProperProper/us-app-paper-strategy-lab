@@ -27,4 +27,4 @@ The evaluator, not a model, decides returns, drawdown, trade counts, chronology,
 
 ## Current limitations
 
-The fixed 60% train / 20% validation / 20% test split remains a diagnostic report, not the primary live-like evidence. Blind replay uses at least 21 prior sessions, selects at each boundary, and replays one unseen session at a time with session-flat boundaries. The system does not run a supervisor or persist learned memory in this repository. Runtime artifacts remain outside Git. The system is long-only, one-position, and paper/tester-only in this public build.
+The fixed 60% train / 20% validation / 20% test split remains a diagnostic report, not the primary live-like evidence; all three slices use complete sessions. Blind replay uses at least 21 prior sessions, selects at each boundary, and replays one unseen session at a time with session-flat boundaries. The system does not run a supervisor or persist learned memory in this repository. Runtime artifacts remain outside Git. The system is long-only, one-position, and paper/tester-only in this public build.

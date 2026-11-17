@@ -109,6 +109,25 @@ def evaluate(frame: pd.DataFrame, params: dict) -> dict:
     return {"params": effective, "stats": result}
 
 
+def session_split(frame: pd.DataFrame):
+    """Split into complete chronological sessions, never partial candles."""
+    sessions = frame.index.normalize().drop_duplicates()
+    train_cut = max(1, min(len(sessions) - 2, int(len(sessions) * 0.60)))
+    validation_cut = max(train_cut + 1, min(len(sessions) - 1, int(len(sessions) * 0.80)))
+    validation_start, test_start = sessions[train_cut], sessions[validation_cut]
+    train = frame.loc[frame.index.normalize() < validation_start]
+    validation = frame.loc[(frame.index.normalize() >= validation_start) & (frame.index.normalize() < test_start)]
+    test = frame.loc[frame.index.normalize() >= test_start]
+    return train, validation, test, {
+        "total_sessions": len(sessions), "train_sessions": train_cut,
+        "validation_sessions": validation_cut - train_cut,
+        "test_sessions": len(sessions) - validation_cut,
+        "train_start": str(train.index.min()), "train_end": str(train.index.max()),
+        "validation_start": str(validation.index.min()), "validation_end": str(validation.index.max()),
+        "test_start": str(test.index.min()), "test_end": str(test.index.max()),
+    }
+
+
 def mutate(rng: random.Random, parent: dict | None = None) -> dict:
     base = dict(BASELINE) if parent is None else {**BASELINE, **parent}
     params = dict(base)
@@ -239,8 +258,7 @@ def main() -> int:
     args = ap.parse_args()
     providers = [x.strip() for x in args.providers.split(",") if x.strip()]
     frame = load_frame(args.db, args.lookback_days, args.start, args.end)
-    train_end, validation_end = int(len(frame) * .60), int(len(frame) * .80)
-    train, validation, test = frame.iloc[:train_end], frame.iloc[train_end:validation_end], frame.iloc[validation_end:]
+    train, validation, test, split_profile = session_split(frame)
     baseline_evidence = {
         label: evaluate(part, dict(BASELINE))["stats"]
         for label, part in (("train", train), ("validation", validation), ("test", test))
@@ -253,6 +271,7 @@ def main() -> int:
         "lookback_days": int(args.lookback_days), "requested_start": args.start,
         "requested_end": args.end, "train_rows": len(train),
         "validation_rows": len(validation), "test_rows": len(test),
+        "session_split": split_profile,
         "sessions": int(frame.index.normalize().nunique()),
         "close_start": round(float(frame["close"].iloc[0]), 6),
         "close_end": round(float(frame["close"].iloc[-1]), 6),

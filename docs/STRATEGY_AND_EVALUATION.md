@@ -23,8 +23,8 @@ Historical results are evidence from a specific dataset and execution model, not
 
 - Signals use completed bars only.
 - Entries and exits are simulated at the completed candle close with configured slippage.
-- Parameters are selected on the first 60% of the loaded candle window.
-- Validation uses the next 20%; the final test uses the last 20%.
+- Parameters are selected on the first 60% of complete sessions in the loaded candle window.
+- Validation uses the next 20% of complete sessions; the final test uses the last 20%. No split cuts through a trading session.
 - Blind replay re-selects from prior-session hypotheses at every session boundary, then evaluates exactly the next unseen session. The fixed 60/20/20 split is retained as a secondary diagnostic.
 - Slippage, position limits, duplicate trades, chronology, and drawdown are checked locally. The generic evaluator supports fee models, but the current mutation runner passes zero commission and no fee model.
 - A candidate cannot replace the baseline merely because it has a higher in-sample score. Promotion requires validation performance above the baseline, at least three validation trades, and no more than one percentage point of additional validation drawdown. The final test is reported as untouched evidence and is not used to select the candidate.
