@@ -1,14 +1,14 @@
-"""Generic Moomoo AU/ASX transaction fee model for local research."""
+"""Generic transaction fee model for local paper-trading research."""
 from __future__ import annotations
 
 
-def moomoo_au_asx_fee(order_value_aud: float) -> float:
+def transaction_fee(order_value: float) -> float:
     """Progressive transaction brokerage, rounded to cents.
 
     The model is deliberately account-provider neutral: it represents only
     transaction brokerage and does not include an account administration fee.
     """
-    value = float(order_value_aud)
+    value = float(order_value)
     if value < 0:
         raise ValueError("transaction value cannot be negative")
     if value == 0:

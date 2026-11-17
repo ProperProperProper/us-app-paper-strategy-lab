@@ -17,7 +17,7 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-from moomoo_fees import moomoo_au_asx_fee
+from moomoo_fees import transaction_fee
 from strategy_57pct import Trade, _validate_candles, _validate_trades, stats
 from advanced_research_engine import advanced_feature_frame, advanced_seed_params, causal_triple_barrier_labels
 
@@ -121,18 +121,18 @@ def run_ml(frame: pd.DataFrame, params: dict[str, Any], capital: float = 200_000
             elif price >= position["entry"] * (1 + target): exit_reason = "ML_TP"
             elif pd.notna(prob.iloc[i]) and float(prob.iloc[i]) <= sell_threshold: exit_reason = "ML_EXIT"
             if exit_reason:
-                out = price * (1 - slip); fee = moomoo_au_asx_fee(position["qty"] * out)
+                out = price * (1 - slip); fee = transaction_fee(position["qty"] * out)
                 gross = (out - position["entry"]) * position["qty"]; costs = position["entry_fee"] + fee
                 trades.append(Trade(position["signal_time"], position["entry_time"], position["entry"], position["qty"], stamp.isoformat(), out, gross, costs, gross - costs, (gross - costs) / (position["entry"] * position["qty"]) * 100, exit_reason))
                 cash += position["qty"] * out - fee; position = None
                 continue
         if position is None and pd.notna(prob.iloc[i]) and float(prob.iloc[i]) >= buy_threshold:
-            entry = price * (1 + slip); qty = math.floor(cash * allocation / entry); fee = moomoo_au_asx_fee(qty * entry) if qty else 0.0
+            entry = price * (1 + slip); qty = math.floor(cash * allocation / entry); fee = transaction_fee(qty * entry) if qty else 0.0
             if qty and qty * entry + fee <= cash:
                 cash -= qty * entry + fee
                 position = {"signal_time": stamp.isoformat(), "entry_time": stamp.isoformat(), "entry": entry, "qty": qty, "entry_fee": fee}
     if position and rows:
-        stamp, bar = rows[-1]; out = float(bar.close) * (1 - slip); fee = moomoo_au_asx_fee(position["qty"] * out)
+        stamp, bar = rows[-1]; out = float(bar.close) * (1 - slip); fee = transaction_fee(position["qty"] * out)
         gross = (out - position["entry"]) * position["qty"]; costs = position["entry_fee"] + fee
         trades.append(Trade(position["signal_time"], position["entry_time"], position["entry"], position["qty"], stamp.isoformat(), out, gross, costs, gross - costs, (gross - costs) / (position["entry"] * position["qty"]) * 100, "ML_MARK_TO_MARKET"))
         cash += position["qty"] * out - fee

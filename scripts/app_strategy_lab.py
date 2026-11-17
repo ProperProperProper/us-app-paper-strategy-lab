@@ -19,11 +19,9 @@ from pathlib import Path
 
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parents[2]
-LAB_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(LAB_ROOT))
-sys.path.insert(0, str(LAB_ROOT / "scripts"))
+ROOT = Path(__file__).resolve().parents[1]
+LAB_ROOT = ROOT
+sys.path.insert(0, str(ROOT / "scripts"))
 
 
 def load_root_module(name: str, path: Path):
@@ -36,10 +34,10 @@ def load_root_module(name: str, path: Path):
     return module
 
 
-root_strategy = load_root_module("root_strategy_57pct", ROOT / "strategy_57pct.py")
+root_strategy = load_root_module("root_strategy_57pct", ROOT / "scripts" / "strategy_57pct.py")
 BASELINE, run, stats = root_strategy.BASELINE, root_strategy.run, root_strategy.stats
-from mcp_strategy_lab import MCPClient
-from multi_symbol_strategy_lab import AntigravityOptimizer
+from model_client import MCPClient
+from agent_workers import AntigravityOptimizer
 
 
 def write_live_strategy(symbol: str, interval: int, params: dict, run_id: str) -> dict:

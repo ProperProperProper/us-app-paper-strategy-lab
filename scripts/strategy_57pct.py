@@ -226,7 +226,7 @@ def run(candles: pd.DataFrame, params: dict = BASELINE, capital: float = 100000.
                 trades.append(Trade(position["signal_time"].isoformat(), position["entry_time"].isoformat(), entry, position["qty"], exit_time.isoformat(), exit_price, gross, costs, net, net / (entry * position["qty"]) * 100, reason)); position = None; continue
         gate_on = bool(params.get("downtrend_filter", True))
         # The five-hour candle is complete at this close.  The strategy is
-        # allowed to act in the remaining ASX session hour, so execution is
+        # allowed to act in the remaining session hour, so execution is
         # the signal candle close, never the next session's open.
         if position is None and bool(bar.entry_signal) and (not gate_on or not bool(bar.downtrend_blocked)):
             entry = float(bar.close) * (1 + slip); qty = math.floor(cash * allocation / entry)

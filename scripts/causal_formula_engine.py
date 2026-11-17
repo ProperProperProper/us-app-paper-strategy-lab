@@ -13,7 +13,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from moomoo_fees import moomoo_au_asx_fee
+from moomoo_fees import transaction_fee
 from strategy_57pct import Trade, _validate_candles, _validate_trades, stats
 
 FIELDS = {"open", "high", "low", "close", "volume"}
@@ -90,13 +90,13 @@ def run_formula(frame, spec, capital=200000.0, allocation=1.0, slippage_bps=2.0)
             if price <= position["entry"] * (1 - float(spec.get("stop", .08))): reason = "FORMULA_STOP"
             elif price >= position["entry"] * (1 + float(spec.get("take_profit", .16))): reason = "FORMULA_TP"
             if reason:
-                out = price * (1 - slip); fee = moomoo_au_asx_fee(position["qty"] * out); gross = (out - position["entry"]) * position["qty"]; costs = position["entry_fee"] + fee; net = gross - costs
+                out = price * (1 - slip); fee = transaction_fee(position["qty"] * out); gross = (out - position["entry"]) * position["qty"]; costs = position["entry_fee"] + fee; net = gross - costs
                 trades.append(Trade(position["time"], position["time"], position["entry"], position["qty"], stamp.isoformat(), out, gross, costs, net, net / (position["entry"] * position["qty"]) * 100, reason)); cash += position["qty"] * out - fee; position = None; continue
         if position is None and bool(entry.loc[stamp]):
-            px = price * (1 + slip); qty = math.floor(cash * allocation / px); fee = moomoo_au_asx_fee(qty * px) if qty else 0.0
+            px = price * (1 + slip); qty = math.floor(cash * allocation / px); fee = transaction_fee(qty * px) if qty else 0.0
             if qty and qty * px + fee <= cash: cash -= qty * px + fee; position = {"time": stamp.isoformat(), "entry": px, "qty": qty, "entry_fee": fee}
     if position:
-        stamp = frame.index[-1]; out = float(frame.iloc[-1].close) * (1 - slip); fee = moomoo_au_asx_fee(position["qty"] * out); gross = (out - position["entry"]) * position["qty"]; costs = position["entry_fee"] + fee; net = gross - costs
+        stamp = frame.index[-1]; out = float(frame.iloc[-1].close) * (1 - slip); fee = transaction_fee(position["qty"] * out); gross = (out - position["entry"]) * position["qty"]; costs = position["entry_fee"] + fee; net = gross - costs
         trades.append(Trade(position["time"], position["time"], position["entry"], position["qty"], stamp.isoformat(), out, gross, costs, net, net / (position["entry"] * position["qty"]) * 100, "FORMULA_MARK_TO_MARKET"))
     equity = pd.DataFrame(equity_rows).set_index("date")
     _validate_trades(trades)

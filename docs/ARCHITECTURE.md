@@ -14,7 +14,7 @@ The evaluator, not a model, decides returns, drawdown, fees, trade counts, chron
 ## Main components
 
 - `scripts/multi_symbol_strategy_lab.py` — controller, workers, memory, and evaluation loop.
-- `scripts/continuous_daily_research.py` — supervised daily runner and restart logic.
+- `scripts/app_strategy_lab.py` — US.APP mutation runner and promotion boundary.
 - `scripts/research_console.py` — local browser console and API.
 - `scripts/strategy_57pct.py` — deterministic strategy and walk-forward primitives.
 - `scripts/quant_storage.py` — SQLite persistence.

@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from moomoo_fees import moomoo_au_asx_fee
+from moomoo_fees import transaction_fee
 from strategy_57pct import Trade, _validate_candles, _validate_trades, stats
 
 
@@ -65,16 +65,16 @@ def run_custom(frame: pd.DataFrame, spec: dict[str, Any], capital=200000.0, allo
             price=float(bar.close); stop=position["entry"]*(1-float(spec.get("stop",.05))); target=position["entry"]*(1+float(spec.get("take_profit",.20)))
             reason="TP" if price>=target else "STOP" if price<=stop else "SIGNAL_EXIT" if bool(exit_signal.iloc[i]) else None
             if reason:
-                out=float(next_bar.open)*(1-slip); exit_fee=moomoo_au_asx_fee(position["qty"]*out); gross=(out-position["entry"])*position["qty"]; costs=position["entry_fee"]+exit_fee
+                out=float(next_bar.open)*(1-slip); exit_fee=transaction_fee(position["qty"]*out); gross=(out-position["entry"])*position["qty"]; costs=position["entry_fee"]+exit_fee
                 trades.append(Trade(position["signal_time"].isoformat(),position["entry_time"].isoformat(),position["entry"],position["qty"],next_stamp.isoformat(),out,gross,costs,gross-costs,(gross-costs)/(position["entry"]*position["qty"])*100,reason)); cash+=position["qty"]*out-exit_fee; position=None; continue
             # Never overwrite an open position with a second signal.
             continue
         if bool(entry.iloc[i]):
-            px=float(next_bar.open)*(1+slip); qty=math.floor(cash*allocation/px); fee=moomoo_au_asx_fee(qty*px) if qty>0 else 0
+            px=float(next_bar.open)*(1+slip); qty=math.floor(cash*allocation/px); fee=transaction_fee(qty*px) if qty>0 else 0
             if qty>0 and qty*px+fee <= cash:
                 cash-=qty*px+fee; position={"entry":px,"qty":qty,"entry_time":next_stamp,"signal_time":stamp,"entry_fee":fee}
     if position:
-        stamp,bar=rows[-1]; out=float(bar.close)*(1-slip); fee=moomoo_au_asx_fee(position["qty"]*out); gross=(out-position["entry"])*position["qty"]; costs=position["entry_fee"]+fee; trades.append(Trade(position["signal_time"].isoformat(),position["entry_time"].isoformat(),position["entry"],position["qty"],stamp.isoformat(),out,gross,costs,gross-costs,(gross-costs)/(position["entry"]*position["qty"])*100,"MARK_TO_MARKET")); cash+=position["qty"]*out-fee
+        stamp,bar=rows[-1]; out=float(bar.close)*(1-slip); fee=transaction_fee(position["qty"]*out); gross=(out-position["entry"])*position["qty"]; costs=position["entry_fee"]+fee; trades.append(Trade(position["signal_time"].isoformat(),position["entry_time"].isoformat(),position["entry"],position["qty"],stamp.isoformat(),out,gross,costs,gross-costs,(gross-costs)/(position["entry"]*position["qty"])*100,"MARK_TO_MARKET")); cash+=position["qty"]*out-fee
     _validate_trades(trades)
     if rows:
         last_stamp=rows[-1][0]
