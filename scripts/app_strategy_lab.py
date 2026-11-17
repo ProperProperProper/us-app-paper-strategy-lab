@@ -289,7 +289,7 @@ def main() -> int:
     profile = {
         "symbol": "US.APP", "interval": "10m", "rows": len(frame),
         "start": str(frame.index.min()), "end": str(frame.index.max()),
-        "lookback_days": int(args.lookback_days), "requested_start": args.start,
+        "lookback_days": int(args.lookback_days), "lookback_role": "source_window_only_not_a_rolling_test_window", "training_sessions": TRAIN_SESSIONS, "requested_start": args.start,
         "requested_end": args.end, "rows_available_for_rolling_replay": len(frame),
         "sessions": int(frame.index.normalize().nunique()),
         "close_start": round(float(frame["close"].iloc[0]), 6),
