@@ -27,7 +27,7 @@ Historical results are evidence from a specific dataset and execution model, not
 - Validation uses the next 20% of complete sessions; the final test uses the last 20%. No split cuts through a trading session.
 - Blind replay re-selects from prior-session hypotheses at every session boundary, then evaluates exactly the next unseen session. The fixed 60/20/20 split is retained as a secondary diagnostic.
 - Slippage, position limits, duplicate trades, chronology, and drawdown are checked locally. The generic evaluator supports fee models, but the current mutation runner passes zero commission and no fee model.
-- A candidate cannot replace the baseline merely because it has a higher in-sample score. Promotion requires validation performance above the baseline, at least three validation trades, and no more than one percentage point of additional validation drawdown. The final test is reported as untouched evidence and is not used to select the candidate.
+- A candidate cannot replace the baseline merely because it has a higher in-sample score. Promotion now uses the candidate's out-of-sample `final_test` against a fresh baseline `final_test`: it requires higher return, at least three final-test trades, and no more than one percentage point of additional final-test drawdown. The fixed validation slice remains diagnostic; blind session replay remains the live-like evidence report.
 - Before every rejection, the runner freshly re-tests the unchanged baseline on the same validation slice, final test slice, and full current window, and stores those metrics alongside the candidate decision.
 
 ## Candidate types

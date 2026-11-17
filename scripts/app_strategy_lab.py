@@ -342,17 +342,17 @@ def main() -> int:
             baseline_final_test = evaluate(test, dict(BASELINE))
             baseline_current_window = evaluate(frame, dict(BASELINE))
             promotion_reasons = []
-            if selected["stats"]["trades"] < MIN_PROMOTION_TRADES:
-                promotion_reasons.append(f"validation_trades<{MIN_PROMOTION_TRADES}")
-            if selected["stats"]["selection_score"] <= baseline_validation["stats"]["selection_score"]:
-                promotion_reasons.append("validation_score_not_above_baseline")
-            if selected["stats"]["max_drawdown_pct"] < baseline_validation["stats"]["max_drawdown_pct"] - MAX_PROMOTION_DRAWDOWN_DEGRADATION_PCT:
-                promotion_reasons.append("validation_drawdown_too_deep")
+            if final["stats"]["trades"] < MIN_PROMOTION_TRADES:
+                promotion_reasons.append(f"final_test_trades<{MIN_PROMOTION_TRADES}")
+            if final["stats"]["total_return_pct"] <= baseline_final_test["stats"]["total_return_pct"]:
+                promotion_reasons.append("final_test_return_not_above_baseline")
+            if final["stats"]["max_drawdown_pct"] < baseline_final_test["stats"]["max_drawdown_pct"] - MAX_PROMOTION_DRAWDOWN_DEGRADATION_PCT:
+                promotion_reasons.append("final_test_drawdown_too_deep")
             if promotion_reasons:
-                promoted = {"status": "REJECTED", "params": dict(BASELINE), "reasons": promotion_reasons, "baseline_validation": baseline_validation["stats"], "baseline_final_test": baseline_final_test["stats"], "baseline_current_window": baseline_current_window["stats"]}
+                promoted = {"status": "REJECTED", "params": dict(BASELINE), "reasons": promotion_reasons, "decision_basis": "final_test_vs_baseline_final_test", "baseline_validation": baseline_validation["stats"], "baseline_final_test": baseline_final_test["stats"], "baseline_current_window": baseline_current_window["stats"]}
             else:
                 promoted = write_live_strategy("US.APP", 10, selected["params"], f"APP-{run_dir.name}-r{round_number:03d}")
-            result = {"round": round_number, "profile": profile, "train_best": candidates[0], "selected_validation": selected, "baseline_validation": baseline_validation, "baseline_final_test": baseline_final_test, "baseline_current_window": baseline_current_window, "final_test": final, "promotion_gate": {"min_trades": MIN_PROMOTION_TRADES, "max_drawdown_degradation_pct": MAX_PROMOTION_DRAWDOWN_DEGRADATION_PCT}, "promoted": promoted, "agent_mutation": bool(client or antigravity), "proposal_provider": "nvidia" if client else None, "configuration_provider": "antigravity" if antigravity else None, "nvidia_proposals": nvidia_proposals}
+            result = {"round": round_number, "profile": profile, "train_best": candidates[0], "selected_validation": selected, "baseline_validation": baseline_validation, "baseline_final_test": baseline_final_test, "baseline_current_window": baseline_current_window, "final_test": final, "promotion_gate": {"decision_basis": "final_test_vs_baseline_final_test", "min_trades": MIN_PROMOTION_TRADES, "max_drawdown_degradation_pct": MAX_PROMOTION_DRAWDOWN_DEGRADATION_PCT}, "promoted": promoted, "agent_mutation": bool(client or antigravity), "proposal_provider": "nvidia" if client else None, "configuration_provider": "antigravity" if antigravity else None, "nvidia_proposals": nvidia_proposals}
             (run_dir / f"round-{round_number:03d}.json").write_text(json.dumps(result, indent=2, default=str) + "\n")
             write_status(status_file, {"state": "RUNNING", **result, "run_dir": str(run_dir)})
             print(json.dumps({"round": round_number, "train": candidates[0]["stats"], "validation": selected["stats"], "test": final["stats"], "promoted": promoted}), flush=True)

@@ -32,7 +32,7 @@ The timestamps above are examples from one local cache. Use the timestamps recor
 
 Use the same symbol (`US.APP`), interval (`10m`), candle columns (`open`, `high`, `low`, `close`, `volume`), duplicate policy (deduplicate by `time_key`), 60/20/20 chronological split by complete sessions, 2 bps slippage per side, zero commission, long-only position, and one-position limit. The active evaluator executes on completed-candle closes; it does not simulate next-open fills.
 
-Promotion is a separate decision from measurement: a candidate must beat the baseline on validation, have at least three validation trades, and stay within one percentage point of the baseline's validation drawdown. The final test is not used for selection.
+Promotion is a separate decision from measurement: a candidate must beat the baseline on the same final-test slice, have at least three final-test trades, and stay within one percentage point of the baseline's final-test drawdown. The fixed validation slice remains diagnostic, while blind session replay is the live-like evidence report.
 
 Every rejection artifact also contains a fresh baseline replay on the same validation, final-test, and full current windows.
 
