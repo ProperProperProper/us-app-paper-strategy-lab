@@ -26,7 +26,7 @@ import math
 import signal
 import sys
 import time
-from datetime import time as dt_time
+from datetime import date, datetime, time as dt_time, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -211,13 +211,70 @@ class CompetitionBot:
         return data
 
     @staticmethod
-    def _stale_during_open(latest: pd.Timestamp) -> tuple[bool, float]:
+    def _us_rth_window(now: pd.Timestamp) -> tuple[datetime, datetime] | None:
+        """Return today's NYSE regular-hours window, or None when closed."""
+        day = now.date()
+        if now.weekday() >= 5:
+            return None
+
+        def nth_weekday(month: int, weekday: int, ordinal: int) -> date:
+            first = date(day.year, month, 1)
+            return first + timedelta(days=(weekday - first.weekday()) % 7 + (ordinal - 1) * 7)
+
+        def last_weekday(month: int, weekday: int) -> date:
+            cursor = date(day.year, month + 1, 1) - timedelta(days=1) if month < 12 else date(day.year, 12, 31)
+            return cursor - timedelta(days=(cursor.weekday() - weekday) % 7)
+
+        def observed(month: int, day_number: int) -> date:
+            holiday = date(day.year, month, day_number)
+            return holiday - timedelta(days=1) if holiday.weekday() == 5 else holiday + timedelta(days=1) if holiday.weekday() == 6 else holiday
+
+        # NYSE full-day holidays relevant to regular equity trading.
+        a = day.year
+        golden = a % 19
+        century = a // 100
+        year_in_century = a % 100
+        century_quarter = century // 4
+        year_quarter = year_in_century // 4
+        correction = (century + 8) // 25
+        lunar_correction = (century - correction + 1) // 3
+        moon = (19 * golden + century - century_quarter - lunar_correction + 15) % 30
+        sunday = (32 + 2 * (century % 4) + 2 * year_quarter - moon - year_in_century % 4) % 7
+        adjustment = (golden + 11 * moon + 22 * sunday) // 451
+        easter_month = (moon + sunday - 7 * adjustment + 114) // 31
+        easter_day_number = (moon + sunday - 7 * adjustment + 114) % 31 + 1
+        easter_sunday = date(a, easter_month, easter_day_number)
+        good_friday = easter_sunday - timedelta(days=2)
+        full_day = {
+            observed(1, 1), nth_weekday(1, 0, 3), nth_weekday(2, 0, 3), good_friday,
+            last_weekday(5, 0), observed(6, 19), observed(7, 4), nth_weekday(9, 0, 1),
+            nth_weekday(11, 3, 4), observed(12, 25),
+        }
+        if day in full_day:
+            return None
+
+        # NYSE early closes; after the early close there is no new RTH bar.
+        thanksgiving = nth_weekday(11, 3, 4)
+        july_fourth = date(a, 7, 4)
+        july_early = july_fourth - timedelta(days=1) if july_fourth.weekday() == 5 else july_fourth - timedelta(days=2) if july_fourth.weekday() == 6 else july_fourth
+        early_close_days = {
+            thanksgiving + timedelta(days=1),  # day after Thanksgiving
+            date(a, 12, 24),
+            july_early,
+        }
+        close = dt_time(13, 0) if day in early_close_days else dt_time(16, 0)
+        eastern = "America/New_York"
+        return pd.Timestamp.combine(day, dt_time(9, 30)).tz_localize(eastern), pd.Timestamp.combine(day, close).tz_localize(eastern)
+
+    @classmethod
+    def _stale_during_open(cls, latest: pd.Timestamp) -> tuple[bool, float]:
         """Compare Moomoo's ET candle time with ET, not the computer's local timezone."""
         eastern_latest = latest.tz_localize("America/New_York") if latest.tzinfo is None else latest.tz_convert("America/New_York")
         now = pd.Timestamp.now(tz="America/New_York")
         lag_minutes = max(0.0, (now - eastern_latest).total_seconds() / 60.0)
-        in_rth = now.weekday() < 5 and pd.Timestamp("09:30", tz="America/New_York").time() <= now.time() < pd.Timestamp("16:00", tz="America/New_York").time()
-        return in_rth and (eastern_latest.date() != now.date() or lag_minutes > MAX_CANDLE_LAG_MINUTES), lag_minutes
+        window = cls._us_rth_window(now)
+        in_rth = window is not None and window[0] <= now < window[1]
+        return bool(in_rth and (eastern_latest.date() != now.date() or lag_minutes > MAX_CANDLE_LAG_MINUTES)), lag_minutes
 
     def stop(self, *_: Any) -> None:
         self.running = False
