@@ -31,6 +31,7 @@ Moomoo OpenD must be available at `127.0.0.1:11111` for fresh candles. Local dat
 - [Engineering concepts](docs/ENGINEERING_CONCEPTS.md)
 - [Antigravity integration](docs/ANTIGRAVITY.md)
 - [Security](docs/SECURITY.md)
+- [Reproducible research](docs/REPRODUCIBILITY.md)
 
 ## Repository layout
 

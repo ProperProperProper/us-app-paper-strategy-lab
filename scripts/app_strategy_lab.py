@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """AI mutation loop for the US.APP 10-minute paper strategy.
 
-AI agents propose bounded grid-lookback mutations. The local deterministic
+AI agents propose bounded strategy mutations. The local deterministic
 evaluator owns all P/L, and every selected validation candidate is published
 to the root paper bot's SIMULATE strategy file immediately.
 """
@@ -72,7 +72,8 @@ def write_live_strategy(symbol: str, interval: int, params: dict, run_id: str) -
     return payload
 
 
-def load_frame(db_path: Path, lookback_days: int = 90) -> pd.DataFrame:
+def load_frame(db_path: Path, lookback_days: int = 90, start: str | None = None,
+               end: str | None = None) -> pd.DataFrame:
     with sqlite3.connect(db_path) as db:
         frame = pd.read_sql_query(
             """SELECT time_key, open, high, low, close, volume
@@ -83,7 +84,17 @@ def load_frame(db_path: Path, lookback_days: int = 90) -> pd.DataFrame:
     if frame.empty:
         raise RuntimeError("No US.APP 10-minute candles in the Moomoo cache")
     frame = frame.drop_duplicates("time_key").set_index("time_key").sort_index()
-    frame = frame.loc[frame.index >= frame.index.max() - pd.Timedelta(days=max(1, int(lookback_days)))]
+    if end is not None:
+        end_stamp = pd.Timestamp(end)
+        frame = frame.loc[frame.index <= end_stamp]
+    if frame.empty:
+        raise RuntimeError("No candles remain after the requested end timestamp")
+    if start is not None:
+        frame = frame.loc[frame.index >= pd.Timestamp(start)]
+    else:
+        frame = frame.loc[frame.index >= frame.index.max() - pd.Timedelta(days=max(1, int(lookback_days)))]
+    if frame.empty:
+        raise RuntimeError("No candles remain after the requested date window")
     return frame[["open", "high", "low", "close", "volume"]].astype(float)
 
 
@@ -218,11 +229,13 @@ def main() -> int:
     ap.add_argument("--agents", type=int, default=2)
     ap.add_argument("--candidates", type=int, default=100)
     ap.add_argument("--lookback-days", type=int, default=90)
+    ap.add_argument("--start", help="inclusive candle timestamp, preferably ISO 8601 without timezone")
+    ap.add_argument("--end", help="inclusive candle timestamp, preferably ISO 8601 without timezone")
     ap.add_argument("--providers", default="antigravity")
     ap.add_argument("--continuous", action="store_true")
     args = ap.parse_args()
     providers = [x.strip() for x in args.providers.split(",") if x.strip()]
-    frame = load_frame(args.db, args.lookback_days)
+    frame = load_frame(args.db, args.lookback_days, args.start, args.end)
     train_end, validation_end = int(len(frame) * .60), int(len(frame) * .80)
     train, validation, test = frame.iloc[:train_end], frame.iloc[train_end:validation_end], frame.iloc[validation_end:]
     baseline_evidence = {
@@ -232,7 +245,8 @@ def main() -> int:
     profile = {
         "symbol": "US.APP", "interval": "10m", "rows": len(frame),
         "start": str(frame.index.min()), "end": str(frame.index.max()),
-        "lookback_days": int(args.lookback_days), "train_rows": len(train),
+        "lookback_days": int(args.lookback_days), "requested_start": args.start,
+        "requested_end": args.end, "train_rows": len(train),
         "validation_rows": len(validation), "test_rows": len(test),
         "sessions": int(frame.index.normalize().nunique()),
         "close_start": round(float(frame["close"].iloc[0]), 6),
