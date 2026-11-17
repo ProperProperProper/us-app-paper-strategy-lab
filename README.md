@@ -125,7 +125,7 @@ and its causal 2H–6H aggregations with:
 
 - the frozen CDA rule and ordinary parameter mutations;
 - expanding-window logistic/MLP candidates;
-- a whitelisted compositional formula language (`causal_formula_engine.py`)
+- a whitelisted compositional formula language (`scripts/causal_formula_engine.py`)
   that can combine OHLCV fields, rolling statistics, EMA/SMA/ROC/z-scores,
   comparisons and crossovers; and
 - NVIDIA workers that may propose either parameters or formula trees.
@@ -137,7 +137,7 @@ and every return is recomputed by the local fee-inclusive ledger. Features
 use only the current completed bar and prior bars; validation and test windows
 remain chronologically unseen during selection.
 
-The advanced-family registry is in `advanced_research_engine.py`. It includes
+The advanced-family registry is in `scripts/advanced_research_engine.py`. It includes
 Kalman/state filters, regime models, GARCH variants, extreme-value and
 information features, OU/statistical-arbitrage primitives, triple-barrier and
 meta-label training, conformal-style uncertainty hooks, symbolic/genetic
