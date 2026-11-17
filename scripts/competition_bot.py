@@ -37,6 +37,7 @@ from moomoo import (
     OpenSecTradeContext,
     OrderType,
     RET_OK,
+    SubType,
     TrdEnv,
     TrdMarket,
     TrdSide,
@@ -107,6 +108,7 @@ class CompetitionBot:
         self.strategy_params = dict(BASELINE)
         self._refresh_strategy_code(force=True)
         self.quote = OpenQuoteContext(host="127.0.0.1", port=11111)
+        self.quote_subscribed: set[str] = set()
         self.trade = OpenSecTradeContext(
             filter_trdmarket=TrdMarket.US,
             host="127.0.0.1",
@@ -166,6 +168,57 @@ class CompetitionBot:
         self.quote.close()
         self.trade.close()
 
+    def _ensure_live_candle_subscription(self, symbol: str) -> None:
+        """Enable OpenD's live K-line cache before asking for current bars."""
+        if symbol in self.quote_subscribed:
+            return
+        ret, error = self.quote.subscribe(
+            [symbol],
+            [SubType.K_10M],
+            is_first_push=True,
+            subscribe_push=False,
+            extended_time=False,
+            session="RTH",
+        )
+        if ret != RET_OK:
+            raise RuntimeError(f"live candle subscription failed for {symbol}: {error}")
+        self.quote_subscribed.add(symbol)
+
+    @staticmethod
+    def _clean_candles(data: pd.DataFrame) -> pd.DataFrame:
+        required = {"time_key", "open", "high", "low", "close", "volume"}
+        missing = required.difference(data.columns)
+        if missing:
+            raise RuntimeError(f"candle response missing columns: {sorted(missing)}")
+        data = data.copy()
+        data["time_key"] = pd.to_datetime(data["time_key"], errors="coerce")
+        if data["time_key"].isna().any():
+            raise RuntimeError("candle response contains invalid timestamps")
+        data = data.drop_duplicates("time_key", keep="last").sort_values("time_key")
+        numeric = data[["open", "high", "low", "close", "volume"]].apply(pd.to_numeric, errors="coerce")
+        finite = numeric.apply(lambda column: column.map(math.isfinite))
+        if numeric.isna().any().any() or not finite.all().all():
+            raise RuntimeError("candle response contains non-finite OHLCV values")
+        data[["open", "high", "low", "close", "volume"]] = numeric
+        malformed = (
+            (data["low"] > data[["open", "close", "high"]].min(axis=1))
+            | (data["high"] < data[["open", "close", "low"]].max(axis=1))
+            | (data["low"] <= 0)
+            | (data["high"] <= 0)
+        )
+        if malformed.any():
+            raise RuntimeError("candle response contains malformed OHLC ranges")
+        return data
+
+    @staticmethod
+    def _stale_during_open(latest: pd.Timestamp) -> tuple[bool, float]:
+        """Compare Moomoo's ET candle time with ET, not the computer's local timezone."""
+        eastern_latest = latest.tz_localize("America/New_York") if latest.tzinfo is None else latest.tz_convert("America/New_York")
+        now = pd.Timestamp.now(tz="America/New_York")
+        lag_minutes = max(0.0, (now - eastern_latest).total_seconds() / 60.0)
+        in_rth = now.weekday() < 5 and pd.Timestamp("09:30", tz="America/New_York").time() <= now.time() < pd.Timestamp("16:00", tz="America/New_York").time()
+        return in_rth and (eastern_latest.date() != now.date() or lag_minutes > MAX_CANDLE_LAG_MINUTES), lag_minutes
+
     def stop(self, *_: Any) -> None:
         self.running = False
 
@@ -201,35 +254,33 @@ class CompetitionBot:
         return row_value(data, 0, ("last_price", "cur_price"))
 
     def candles(self, symbol: str) -> pd.DataFrame:
-        ret, data, _ = self.quote.request_history_kline(
+        self._ensure_live_candle_subscription(symbol)
+        ret, history, _ = self.quote.request_history_kline(
             symbol,
             ktype=KLType.K_10M,
             max_count=MIN_BARS,
             extended_time=False,
+            session="RTH",
         )
         if ret != RET_OK:
-            raise RuntimeError(f"candle query failed for {symbol}: {data}")
-        required = {"time_key", "open", "high", "low", "close", "volume"}
-        missing = required.difference(data.columns)
-        if missing:
-            raise RuntimeError(f"candle response missing columns: {sorted(missing)}")
-        data = data.copy()
-        data["time_key"] = pd.to_datetime(data["time_key"], errors="coerce")
-        if data["time_key"].isna().any():
-            raise RuntimeError("candle response contains invalid timestamps")
-        data = data.drop_duplicates("time_key", keep="last").sort_values("time_key")
-        numeric = data[["open", "high", "low", "close", "volume"]].apply(pd.to_numeric, errors="coerce")
-        finite = numeric.apply(lambda column: column.map(math.isfinite))
-        if numeric.isna().any().any() or not finite.all().all():
-            raise RuntimeError("candle response contains non-finite OHLCV values")
-        data[["open", "high", "low", "close", "volume"]] = numeric
-        if ((data["low"] > data[["open", "close", "high"]].min(axis=1)) | (data["high"] < data[["open", "close", "low"]].max(axis=1)) | (data["low"] <= 0) | (data["high"] <= 0)).any():
-            raise RuntimeError("candle response contains malformed OHLC ranges")
+            raise RuntimeError(f"candle history query failed for {symbol}: {history}")
+        data = self._clean_candles(history)
+
+        # request_history_kline can remain cached.  get_cur_kline is the live
+        # subscribed feed; merge it by timestamp so it repairs the cache and
+        # preserves only validated, deduplicated bars.
+        live_ret, live_data = self.quote.get_cur_kline(symbol, MIN_BARS, KLType.K_10M)
+        if live_ret == RET_OK and isinstance(live_data, pd.DataFrame) and not live_data.empty:
+            live = self._clean_candles(live_data)
+            data = self._clean_candles(pd.concat([data, live], ignore_index=True))
+            logging.info("merged live K-line recovery for %s latest=%s", symbol, data["time_key"].max())
+        else:
+            logging.warning("live K-line recovery unavailable for %s: %s", symbol, live_data)
         save_candles(data.set_index("time_key"), symbol, 10)
         latest = data["time_key"].max()
-        lag_minutes = (pd.Timestamp.now() - latest).total_seconds() / 60.0
-        if lag_minutes > MAX_CANDLE_LAG_MINUTES:
-            raise RuntimeError(f"stale candle data for {symbol}: latest={latest} lag_minutes={lag_minutes:.1f}")
+        stale, lag_minutes = self._stale_during_open(latest)
+        if stale:
+            raise RuntimeError(f"stale candle data during RTH for {symbol}: latest={latest} lag_minutes={lag_minutes:.1f}")
         return data
 
     def submit(self, symbol: str, side: Any, qty: int, reason: str) -> None:

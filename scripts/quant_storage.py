@@ -14,6 +14,7 @@ import pandas as pd
 
 
 DB_PATH = Path(__file__).with_name("quant_dashboard.sqlite3")
+MIN_CANDLE_DATE = "2026-01-01T00:00:00"
 
 
 def _json(value: Any) -> str:
@@ -76,6 +77,11 @@ def connect(path: Path = DB_PATH) -> sqlite3.Connection:
         );
         """
     )
+    # The reproducible lab only supports the current 2026 dataset and future
+    # data. Enforce retention at the storage boundary so every importer and
+    # live refresh removes pre-2026 candle history consistently.
+    db.execute("DELETE FROM candles WHERE time_key < ?", (MIN_CANDLE_DATE,))
+    db.commit()
     return db
 
 

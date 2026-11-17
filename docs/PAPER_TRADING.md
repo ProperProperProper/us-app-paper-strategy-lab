@@ -8,6 +8,14 @@ The bot monitors the complete US regular session: every completed 10-minute cand
 
 Before evaluating an entry, it requires fresh candle data and enough history for the active lookback/regime warm-up. Stale or under-warmed data causes a safe cycle error and places no order.
 
+OpenD can return a cached historical snapshot. The bot therefore subscribes to
+the `KL_10M` regular-hours stream, reads `get_cur_kline`, merges live bars by
+`time_key`, validates OHLCV values, deduplicates them, and persists the repaired
+set to SQLite. During regular hours, a missing current-session candle causes a
+retrying no-order cycle; outside regular hours, the last completed trading
+session is valid. Candle storage is retained from `2026-01-01` onward; older
+rows are removed automatically when SQLite opens.
+
 ## Signal-only checks
 
 With Moomoo OpenD available locally:
