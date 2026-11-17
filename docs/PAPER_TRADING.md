@@ -1,6 +1,6 @@
 # Paper-trading boundary
 
-Paper execution is intentionally disabled in this public tester-focused build. The execution boundary is retained for research and integration testing, but the dashboard and CLI reject paper-order startup.
+Paper execution is intentionally disabled in this public tester-focused build. The execution boundary is retained for research and integration testing, but the dashboard and CLI reject paper-order startup. The legacy competition bot also uses a separate 45-bar / EMA 8-89 baseline; it is not the active mutation runner's 33-bar / EMA 17-26 baseline.
 
 ## Signal-only checks
 

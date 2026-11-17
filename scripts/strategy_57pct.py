@@ -1,7 +1,7 @@
-"""Exact local implementation of the GitHub 10-minute winner.
+"""Local US.APP 10-minute breakout/trend strategy implementation.
 
 Source model: the local Donchian/EMA baseline research implementation.
-Winner: lookback 33, EMA 17/26, TP 2.74%, stop 13.24%.
+Active baseline: lookback 33, EMA 17/26, TP 10.69%, stop 3.54%.
 """
 from __future__ import annotations
 
@@ -180,11 +180,7 @@ def _validate_trades(trades) -> None:
 
 
 def run(candles: pd.DataFrame, params: dict = BASELINE, capital: float = 100000.0, allocation: float = ALLOCATION, slippage_bps: float = 2.0, commission: float = 0.0, evaluation_start=None, fee_model=None):
-    """Run the causal imitation with signal-candle-close execution.
-
-    A completed 5H candle produces its signal at the close; the unused final
-    session hour is the execution window. No next-candle data is consulted.
-    """
+    """Run the causal strategy with completed-candle-close execution."""
     _validate_candles(candles)
     x = add_features(candles, params)
     rows = list(x.iterrows()); cash = float(capital); position = None; trades = []; equity_rows = []; slip = slippage_bps / 10000.0
@@ -225,9 +221,8 @@ def run(candles: pd.DataFrame, params: dict = BASELINE, capital: float = 100000.
                 costs = position["entry_fee"] + exit_fee; net = gross - costs; cash += position["qty"] * exit_price - exit_fee
                 trades.append(Trade(position["signal_time"].isoformat(), position["entry_time"].isoformat(), entry, position["qty"], exit_time.isoformat(), exit_price, gross, costs, net, net / (entry * position["qty"]) * 100, reason)); position = None; continue
         gate_on = bool(params.get("downtrend_filter", True))
-        # The five-hour candle is complete at this close.  The strategy is
-        # allowed to act in the remaining session hour, so execution is
-        # the signal candle close, never the next session's open.
+        # The completed candle produces the signal and execution is simulated
+        # at that candle's close; no next-candle data is consulted.
         if position is None and bool(bar.entry_signal) and (not gate_on or not bool(bar.downtrend_blocked)):
             entry = float(bar.close) * (1 + slip); qty = math.floor(cash * allocation / entry)
             if qty > 0:

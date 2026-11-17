@@ -9,7 +9,7 @@ The lab uses a proposal-and-evaluation design:
 5. The selected parameters are written to the local live-strategy JSON artifact.
 6. The browser console exposes process status and the latest run artifact.
 
-The evaluator, not a model, decides returns, drawdown, fees, trade counts, chronology, and eligibility. Generated source is not executed as part of candidate evaluation.
+The evaluator, not a model, decides returns, drawdown, trade counts, chronology, and candidate metrics. Generated source is not executed as part of candidate evaluation. Fee-model support exists in the shared strategy engine, but the current mutation runner uses zero commission.
 
 ## Main components
 
