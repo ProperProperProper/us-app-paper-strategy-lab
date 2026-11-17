@@ -14,9 +14,9 @@ The runner delegates bounded proposal requests to configured providers and aggre
 
 Candidate strategies are represented as structured parameters, indicator specifications, or whitelisted formula trees. Arbitrary model-generated source is not executed during evaluation.
 
-## Chronological holdout validation
+## Chronological blind replay
 
-Data is kept chronological. The runner trains on all sessions before a fixed 15-session final test set. The mutation loop also performs blind block walk-forward replay: it trains on at least 21 prior sessions, selects before each 15-session test block, and scores only that unseen block.
+Data is kept chronological. After 21 complete training sessions, the mutation loop selects before the next session and scores exactly that one unseen session, then rolls forward one session until the data ends. There are no fixed validation partitions or multi-session test blocks.
 
 ## Adversarial agent roles
 

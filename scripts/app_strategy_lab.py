@@ -109,21 +109,6 @@ def evaluate(frame: pd.DataFrame, params: dict) -> dict:
     return {"params": effective, "stats": result}
 
 
-def session_split(frame: pd.DataFrame, test_sessions: int = 15):
-    """Split into training and a fixed unseen session test set."""
-    sessions = frame.index.normalize().drop_duplicates()
-    test_count = max(1, min(len(sessions) - 1, int(test_sessions)))
-    test_start = sessions[-test_count]
-    train = frame.loc[frame.index.normalize() < test_start]
-    test = frame.loc[frame.index.normalize() >= test_start]
-    return train, test, {
-        "total_sessions": len(sessions), "train_sessions": len(sessions) - test_count,
-        "test_sessions": test_count,
-        "train_start": str(train.index.min()), "train_end": str(train.index.max()),
-        "test_start": str(test.index.min()), "test_end": str(test.index.max()),
-    }
-
-
 def mutate(rng: random.Random, parent: dict | None = None) -> dict:
     base = dict(BASELINE) if parent is None else {**BASELINE, **parent}
     params = dict(base)
@@ -254,20 +239,16 @@ def main() -> int:
     args = ap.parse_args()
     providers = [x.strip() for x in args.providers.split(",") if x.strip()]
     frame = load_frame(args.db, args.lookback_days, args.start, args.end)
-    train, test, split_profile = session_split(frame, test_sessions=15)
     baseline_evidence = {
-        label: evaluate(part, dict(BASELINE))["stats"]
-        for label, part in (("train", train), ("test", test))
+        "current_window": evaluate(frame, dict(BASELINE))["stats"]
     }
     blind_candidates = [dict(BASELINE)] + [{**BASELINE, **variant} for variant in PROFIT_EXIT_RESEARCH_VARIANTS]
-    blind_evidence = blind_session_walk_forward(frame, blind_candidates, min_train_sessions=21, test_sessions=15)
+    blind_evidence = blind_session_walk_forward(frame, blind_candidates, min_train_sessions=21)
     profile = {
         "symbol": "US.APP", "interval": "10m", "rows": len(frame),
         "start": str(frame.index.min()), "end": str(frame.index.max()),
         "lookback_days": int(args.lookback_days), "requested_start": args.start,
-        "requested_end": args.end, "train_rows": len(train),
-        "test_rows": len(test),
-        "session_split": split_profile,
+        "requested_end": args.end, "rows_available_for_rolling_replay": len(frame),
         "sessions": int(frame.index.normalize().nunique()),
         "close_start": round(float(frame["close"].iloc[0]), 6),
         "close_end": round(float(frame["close"].iloc[-1]), 6),
@@ -276,8 +257,6 @@ def main() -> int:
         "blind_session_walk_forward": {
             "status": blind_evidence["status"],
             "train_sessions": blind_evidence.get("train_sessions"),
-            "test_sessions_per_block": blind_evidence.get("test_sessions_per_block"),
-            "replayed_blocks": blind_evidence.get("replayed_blocks"),
             "replayed_sessions": blind_evidence.get("replayed_sessions"),
             "aggregate": blind_evidence.get("aggregate"),
             "ending_capital": blind_evidence.get("ending_capital"),
@@ -311,9 +290,9 @@ def main() -> int:
             round_number += 1
             write_status(status_file, {"state": "RUNNING", "symbol": "US.APP", "interval": "10m", "round": round_number, "run_dir": str(run_dir), "profile": profile})
             with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, args.agents)) as pool:
-                jobs = [pool.submit(lambda seed: [evaluate(train, mutate(random.Random(seed), random.choice(parents))) for _ in range(args.candidates)], 900000 + round_number * 100 + i) for i in range(args.agents)]
+                jobs = [pool.submit(lambda seed: [evaluate(frame, mutate(random.Random(seed), random.choice(parents))) for _ in range(args.candidates)], 900000 + round_number * 100 + i) for i in range(args.agents)]
                 candidates = [item for job in jobs for item in job.result()]
-            candidates.extend(evaluate(train, {**BASELINE, **variant}) for variant in PROFIT_EXIT_RESEARCH_VARIANTS)
+            candidates.extend(evaluate(frame, {**BASELINE, **variant}) for variant in PROFIT_EXIT_RESEARCH_VARIANTS)
             nvidia_proposals = []
             if client:
                 for agent in range(max(1, args.agents)):
@@ -325,19 +304,19 @@ def main() -> int:
                 for agent in range(max(1, args.agents)):
                     proposal = ask_agent(None, antigravity, "antigravity", profile, configured_parents, "true controller: choose, constrain, and configure one NVIDIA proposal for local deterministic testing", nvidia_proposals)
                     if proposal:
-                        candidates.append(evaluate(train, proposal))
-            candidates.append(evaluate(train, dict(BASELINE)))
+                        candidates.append(evaluate(frame, proposal))
+            candidates.append(evaluate(frame, dict(BASELINE)))
             candidates.sort(key=lambda item: item["stats"]["selection_score"], reverse=True)
             parents = [item["params"] for item in candidates[:max(2, args.agents)]]
             selected = candidates[0]
-            final = evaluate(test, selected["params"])
-            # Re-test the unchanged baseline on the same current test window
-            # before accepting or rejecting the candidate.
-            baseline_final_test = evaluate(test, dict(BASELINE))
+            candidate_blind = blind_session_walk_forward(frame, [selected["params"]], min_train_sessions=21)
+            baseline_blind = blind_session_walk_forward(frame, [dict(BASELINE)], min_train_sessions=21)
+            final = {"params": selected["params"], "stats": candidate_blind["aggregate"]}
+            baseline_final_test = {"params": dict(BASELINE), "stats": baseline_blind["aggregate"]}
             baseline_current_window = evaluate(frame, dict(BASELINE))
             promotion_reasons = []
-            if final["stats"]["trades"] < MIN_PROMOTION_TRADES:
-                promotion_reasons.append(f"final_test_trades<{MIN_PROMOTION_TRADES}")
+            if final["stats"].get("trades", 0) < MIN_PROMOTION_TRADES:
+                promotion_reasons.append(f"blind_replay_trades<{MIN_PROMOTION_TRADES}")
             if final["stats"]["total_return_pct"] <= baseline_final_test["stats"]["total_return_pct"]:
                 promotion_reasons.append("final_test_return_not_above_baseline")
             if final["stats"]["max_drawdown_pct"] < baseline_final_test["stats"]["max_drawdown_pct"] - MAX_PROMOTION_DRAWDOWN_DEGRADATION_PCT:
@@ -346,7 +325,7 @@ def main() -> int:
                 promoted = {"status": "REJECTED", "params": dict(BASELINE), "reasons": promotion_reasons, "decision_basis": "final_test_vs_baseline_final_test", "baseline_final_test": baseline_final_test["stats"], "baseline_current_window": baseline_current_window["stats"]}
             else:
                 promoted = write_live_strategy("US.APP", 10, selected["params"], f"APP-{run_dir.name}-r{round_number:03d}")
-            result = {"round": round_number, "profile": profile, "train_best": candidates[0], "selected_train": selected, "baseline_final_test": baseline_final_test, "baseline_current_window": baseline_current_window, "final_test": final, "promotion_gate": {"decision_basis": "final_test_vs_baseline_final_test", "min_trades": MIN_PROMOTION_TRADES, "max_drawdown_degradation_pct": MAX_PROMOTION_DRAWDOWN_DEGRADATION_PCT}, "promoted": promoted, "agent_mutation": bool(client or antigravity), "proposal_provider": "nvidia" if client else None, "configuration_provider": "antigravity" if antigravity else None, "nvidia_proposals": nvidia_proposals}
+            result = {"round": round_number, "profile": profile, "train_best": candidates[0], "selected_train": selected, "candidate_blind_replay": candidate_blind, "baseline_blind_replay": baseline_blind, "baseline_final_test": baseline_final_test, "baseline_current_window": baseline_current_window, "final_test": final, "promotion_gate": {"decision_basis": "rolling_one_session_blind_replay_vs_baseline", "train_sessions": 21, "test_step_sessions": 1, "min_trades": MIN_PROMOTION_TRADES, "max_drawdown_degradation_pct": MAX_PROMOTION_DRAWDOWN_DEGRADATION_PCT}, "promoted": promoted, "agent_mutation": bool(client or antigravity), "proposal_provider": "nvidia" if client else None, "configuration_provider": "antigravity" if antigravity else None, "nvidia_proposals": nvidia_proposals}
             (run_dir / f"round-{round_number:03d}.json").write_text(json.dumps(result, indent=2, default=str) + "\n")
             write_status(status_file, {"state": "RUNNING", **result, "run_dir": str(run_dir)})
             print(json.dumps({"round": round_number, "train": candidates[0]["stats"], "final_test": final["stats"], "promoted": promoted}), flush=True)

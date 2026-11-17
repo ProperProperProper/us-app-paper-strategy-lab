@@ -7,9 +7,9 @@ python3 scripts/app_strategy_lab.py --db quant_dashboard.sqlite3 \
   --agents 2 --candidates 100 --providers local,nvidia,antigravity
 ```
 
-The loop defaults to 90 calendar days and generates bounded proposals, evaluates them on chronological training data and a final 15-session unseen test, and writes run summaries plus the promoted parameter file locally. It does not provide a persistent learning-memory store.
+The loop defaults to 90 calendar days and generates bounded proposals, evaluates them using a rolling 21-session training window and one unseen session at a time, and writes run summaries plus the promoted parameter file locally. It does not provide a persistent learning-memory store.
 
-The final test is deliberately limited to 15 complete sessions. This is a regime-focused decision window: it emphasizes the latest market behavior so the selected strategy is maximized for current conditions, while still replaying enough sessions to expose whether the idea survives more than one isolated candle. Blind walk-forward tests only complete 15-session blocks; an incomplete trailing block is excluded. It is an adaptation trade-off, not a guarantee of future performance.
+After 21 complete sessions are available, the lab tests exactly the next session, then advances the training window one session and repeats until the data ends. This is a regime-focused decision process: it emphasizes the latest market behavior and exposes changes one session at a time. It is an adaptation trade-off, not a guarantee of future performance.
 
 ## Required research protocol
 
