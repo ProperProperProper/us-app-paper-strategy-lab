@@ -4,7 +4,7 @@ Paper execution is opt-in and forced through Moomoo `TrdEnv.SIMULATE`. The bot n
 
 The paper bot hot-swaps both approved parameters and `scripts/strategy_57pct.py` code at a newly completed candle. A new module must expose the required strategy runtime contract; failed imports or incompatible code are rejected and the last working strategy remains active. No process restart is required for an approved structural strategy change.
 
-The bot monitors the complete US regular session: every completed 10-minute candle from the session start through the close is eligible for signal processing. It does not stop after a research window, a 15-session limit, or a partial-session slice. New entries are blocked at the close cutoff and any open paper position is closed/marked at session end according to the strategy runtime.
+The bot monitors the complete US regular session: every completed 10-minute candle from the session start through the close is eligible for signal processing. It does not stop after a research window, a 15-session limit, or a partial-session slice. There is no strategy-level early-session entry cutoff or forced time-based exit; entries require the actual strategy signal, and exits require the configured risk, profit-capture, or trend/rule condition.
 
 Before evaluating an entry, it requires fresh candle data and enough history for the active lookback/regime warm-up. Stale or under-warmed data causes a safe cycle error and places no order.
 

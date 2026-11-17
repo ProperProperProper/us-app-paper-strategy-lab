@@ -388,8 +388,7 @@ class CompetitionBot:
                     stop_loss = price <= avg * (1 - float(self.strategy_params["stop"]))
                     take_profit = price >= avg * (1 + float(self.strategy_params["tp"]))
                     indicator_exit = self.strategy_params.get("profit_exit_mode") == "atr_peak_retrace" and self.strategy_profit_capture_exit(price, avg, self.peak_price, float(signal_data.get("atr14", 0.0)), self.strategy_params)
-                    session_exit = bool(signal_data["session_exit"])
-                    if take_profit or stop_loss or indicator_exit or session_exit or signal_data["yellow_exit"] or signal_data["red_exit"] or signal_data["trend_exit"]:
+                    if take_profit or stop_loss or indicator_exit or signal_data["yellow_exit"] or signal_data["red_exit"] or signal_data["trend_exit"]:
                         self.submit(symbol, TrdSide.SELL, int(qty), "EXIT")
                         self.state["pending"][symbol] = "SELL"
                         self.peak_price = 0.0

@@ -8,7 +8,6 @@ from __future__ import annotations
 import math
 import random
 from dataclasses import dataclass, asdict
-from datetime import time
 
 import numpy as np
 import pandas as pd
@@ -27,7 +26,6 @@ BASELINE = {
     "profit_atr_multiple": 2.5, "profit_min_retrace": 0.03,
 }
 ALLOCATION = 1.0
-SESSION_END = time(15, 45)
 EMA_WARMUP_MULTIPLIER = 1
 
 
@@ -151,9 +149,8 @@ def strategy_signal(frame: pd.DataFrame, params: dict = BASELINE) -> dict:
     if len(x) < 2:
         raise ValueError("not enough completed candles")
     bar = x.iloc[-2]
-    bar_time = pd.Timestamp(x.index[-2]).time()
     warmup_ready = bool(bar.warmup_ready)
-    return {"bar": str(x.index[-2]), "close": float(bar.close), "atr14": float(bar.atr14), "ema_fast": float(bar.ema_fast), "ema_slow": float(bar.ema_slow), "raw_long_signal": bool(bar.entry_signal), "downtrend_blocked": bool(bar.downtrend_blocked), "long_signal": warmup_ready and bool(bar.entry_signal) and not bool(bar.downtrend_blocked), "yellow_exit": warmup_ready and bool(bar.yellow_exit), "red_exit": warmup_ready and bool(bar.red_exit), "trend_exit": warmup_ready and bool(bar.trend_exit), "entry_allowed": warmup_ready and bar_time < time(15, 40), "session_exit": bar_time >= time(15, 40), "warmup_ready": warmup_ready, "warmup_status": "FULL" if len(x) >= int(x.attrs["required_warmup_candles"]) else "LIMITED_CACHE", "required_warmup_candles": int(x.attrs["required_warmup_candles"]), "effective_warmup_candles": int(x.attrs["effective_warmup_candles"])}
+    return {"bar": str(x.index[-2]), "close": float(bar.close), "atr14": float(bar.atr14), "ema_fast": float(bar.ema_fast), "ema_slow": float(bar.ema_slow), "raw_long_signal": bool(bar.entry_signal), "downtrend_blocked": bool(bar.downtrend_blocked), "long_signal": warmup_ready and bool(bar.entry_signal) and not bool(bar.downtrend_blocked), "yellow_exit": warmup_ready and bool(bar.yellow_exit), "red_exit": warmup_ready and bool(bar.red_exit), "trend_exit": warmup_ready and bool(bar.trend_exit), "entry_allowed": warmup_ready, "session_exit": False, "warmup_ready": warmup_ready, "warmup_status": "FULL" if len(x) >= int(x.attrs["required_warmup_candles"]) else "LIMITED_CACHE", "required_warmup_candles": int(x.attrs["required_warmup_candles"]), "effective_warmup_candles": int(x.attrs["effective_warmup_candles"])}
 
 
 def profit_capture_exit(price: float, entry: float, peak: float, atr: float,
