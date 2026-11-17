@@ -6,16 +6,18 @@ The paper bot hot-swaps both approved parameters and `scripts/strategy_57pct.py`
 
 The bot monitors the complete US regular session: every completed 10-minute candle from the session start through the close is eligible for signal processing. It does not stop after a research window, a 15-session limit, or a partial-session slice. New entries are blocked at the close cutoff and any open paper position is closed/marked at session end according to the strategy runtime.
 
+Before evaluating an entry, it requires fresh candle data and enough history for the active lookback/regime warm-up. Stale or under-warmed data causes a safe cycle error and places no order.
+
 ## Signal-only checks
 
 With Moomoo OpenD available locally:
 
 ```sh
 python3 scripts/competition_bot.py --list-accounts
-python3 scripts/competition_bot.py US.APP --acc-index 2 --live-paper
+python3 scripts/competition_bot.py US.APP --acc-id "$COMPETITION_SIM_ACCOUNT_ID" --live-paper
 ```
 
-Use the account index for the paper/competition account shown by `--list-accounts`; `2` is only an example and must be confirmed locally. Without `--live-paper`, the bot remains signal-only. Do not provide credentials or account identifiers in source, documentation, issues, or reports.
+Set `COMPETITION_SIM_ACCOUNT_ID` only in the local shell from the competition SIMULATE account shown by `--list-accounts`; never commit it. Without `--live-paper`, the bot remains signal-only. Do not provide credentials or account identifiers in source, documentation, issues, or reports.
 
 ## Dashboard
 

@@ -24,6 +24,7 @@ import json
 import logging
 import math
 import signal
+import sys
 import time
 from datetime import time as dt_time
 from pathlib import Path
@@ -48,7 +49,8 @@ from strategy_57pct import profit_capture_exit
 
 POSITION_FRACTION = 0.95
 POLL_SECONDS = 30
-MIN_BARS = 26 + 33 + 5
+MIN_BARS = 200
+MAX_CANDLE_LAG_MINUTES = 120
 STATE_PATH = Path(__file__).with_name("competition_bot_state.json")
 LOG_PATH = Path(__file__).with_name("competition_bot.log")
 ROOT = Path(__file__).resolve().parents[1]
@@ -135,6 +137,7 @@ class CompetitionBot:
             if spec is None or spec.loader is None:
                 raise ImportError("strategy source loader unavailable")
             module = importlib.util.module_from_spec(spec)
+            sys.modules[module_name] = module
             spec.loader.exec_module(module)
             if not all(hasattr(module, name) for name in ("BASELINE", "strategy_signal", "profit_capture_exit")):
                 raise ImportError("strategy source missing required runtime contract")
@@ -206,6 +209,10 @@ class CompetitionBot:
         )
         if ret != RET_OK:
             raise RuntimeError(f"candle query failed for {symbol}: {data}")
+        latest = pd.to_datetime(data["time_key"]).max()
+        lag_minutes = (pd.Timestamp.now() - latest).total_seconds() / 60.0
+        if lag_minutes > MAX_CANDLE_LAG_MINUTES:
+            raise RuntimeError(f"stale candle data for {symbol}: latest={latest} lag_minutes={lag_minutes:.1f}")
         save_candles(data.set_index("time_key"), symbol, 10)
         return data
 
@@ -317,7 +324,8 @@ def list_accounts() -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("symbols", nargs="*", help="US symbols, e.g. AAPL NVDA; defaults to config only when supplied")
-    parser.add_argument("--acc-index", type=int, default=0, help="SIMULATE US account index from --list-accounts")
+    parser.add_argument("--acc-index", type=int, default=0, help="SIMULATE US account index when supported")
+    parser.add_argument("--acc-id", type=int, help="SIMULATE account ID from local --list-accounts output")
     parser.add_argument("--interval", type=int, default=POLL_SECONDS)
     parser.add_argument("--live-paper", action="store_true", help="Submit orders to the selected Moomoo SIMULATE account; never a live account")
     parser.add_argument("--list-accounts", action="store_true")
@@ -327,7 +335,7 @@ def main() -> int:
         return list_accounts()
     if not args.symbols:
         parser.error("provide at least one symbol, or use --list-accounts")
-    bot = CompetitionBot(args.symbols, args.acc_index, args.live_paper, args.interval)
+    bot = CompetitionBot(args.symbols, args.acc_index, args.live_paper, args.interval, args.acc_id)
     signal.signal(signal.SIGINT, bot.stop)
     signal.signal(signal.SIGTERM, bot.stop)
     try:
