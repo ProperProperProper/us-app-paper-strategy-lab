@@ -26,6 +26,7 @@ Moomoo OpenD must be available at `127.0.0.1:11111` for fresh candles. Local dat
 - [Strategy and evaluation](docs/STRATEGY_AND_EVALUATION.md)
 - [Research workflows](docs/RESEARCH_WORKFLOWS.md)
 - [Model operations](docs/MODEL_OPERATIONS.md)
+- [External gateway and MCP setup](docs/EXTERNAL_GATEWAY.md)
 - [Paper-trading boundary](docs/PAPER_TRADING.md)
 - [Engineering concepts](docs/ENGINEERING_CONCEPTS.md)
 - [Antigravity integration](docs/ANTIGRAVITY.md)

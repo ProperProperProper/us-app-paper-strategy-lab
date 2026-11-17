@@ -7,6 +7,8 @@
 - Moomoo OpenD at `127.0.0.1:11111` when fresh Moomoo candles are required.
 - The local model gateway and MLX boundary when using model-assisted research.
 
+See [External gateway and MCP setup](EXTERNAL_GATEWAY.md) for service startup, MCP path discovery, environment variables, and verification.
+
 ## Start the browser console
 
 ```sh

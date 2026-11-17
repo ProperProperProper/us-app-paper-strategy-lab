@@ -2,6 +2,8 @@
 
 The lab routes bounded research requests through local model services. Models propose; the deterministic local evaluator decides.
 
+The gateway and MCP server are external dependencies. Their setup, credentials, model allowlists, and service lifecycle are documented in [External gateway and MCP setup](EXTERNAL_GATEWAY.md).
+
 ## Responsibilities
 
 - The local gateway provider supplies local-model proposals when configured.
