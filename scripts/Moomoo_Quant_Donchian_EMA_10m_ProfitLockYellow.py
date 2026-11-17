@@ -1,6 +1,6 @@
 """Moomoo Quant 10-minute profit-lock/yellow-exit research candidate.
 
-Frozen entry: Donchian 45, EMA 8/89, completed 10-minute candle.
+Current entry: Donchian 33, EMA 17/26, completed 10-minute candle.
 Exit candidate found in a broader local exit-only search:
   - TP: 10.69%
   - Initial stop: 3.54% below actual filled cost
@@ -39,7 +39,7 @@ from ftool import *
 
 indicator('DONCHIAN_EMA_10M_PROFIT_LOCK_YELLOW', '10-minute profit lock yellow exit')
 
-def strategy_values(lookback=45, fast=8, slow=89):
+def strategy_values(lookback=33, fast=17, slow=26):
     prior_high = high().hhv(lookback, 1).ref(1)
     ema_fast = close().ema(fast)
     ema_slow = close().ema(slow)
@@ -55,9 +55,9 @@ def strategy_values(lookback=45, fast=8, slow=89):
     return prior_high, ema_fast, ema_slow, long_signal, yellow_exit, red_exit
 
 if __name__ == '__main__':
-    lookback = input_parameter('lookback', 45)
-    fast = input_parameter('fast_ema', 8)
-    slow = input_parameter('slow_ema', 89)
+    lookback = input_parameter('lookback', 33)
+    fast = input_parameter('fast_ema', 17)
+    slow = input_parameter('slow_ema', 26)
     prior_high, ema_fast, ema_slow, long_signal, yellow_exit, red_exit = strategy_values(
         lookback, fast, slow
     )
@@ -78,7 +78,7 @@ if __name__ == '__main__':
         )
 
     def handle_data(self):
-        params = {'lookback': 45.0, 'fast_ema': 8.0, 'slow_ema': 89.0}
+        params = {'lookback': 33.0, 'fast_ema': 17.0, 'slow_ema': 26.0}
         long_signal = get_Python_indicator(
             indicator_name='DONCHIAN_EMA_10M_PROFIT_LOCK_YELLOW',
             variable_name='LONG_SIGNAL', symbol=self.symbol, params=params,

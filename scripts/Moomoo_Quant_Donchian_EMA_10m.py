@@ -1,9 +1,9 @@
 """Moomoo Algo/Quant copy-paste strategy.
-Frozen 10-minute Donchian/EMA baseline:
-  - Donchian lookback: 45 completed candles
-  - EMA fast/slow: 8 / 89
-  - Take profit: 6.38%
-  - Stop loss: 3.95%
+Current 10-minute Donchian/EMA baseline:
+  - Donchian lookback: 33 completed candles
+  - EMA fast/slow: 17 / 26
+  - Take profit: 10.69%
+  - Stop loss: 3.54%
   - Long only; one position at a time
 
 Paste this entire file into Moomoo Quant's Python strategy editor.
@@ -34,7 +34,7 @@ from ftool import *
 
 indicator('DONCHIAN_EMA_10M_BASELINE', '10-minute Donchian EMA baseline')
 
-def strategy_values(lookback=45, fast=8, slow=89):
+def strategy_values(lookback=33, fast=17, slow=26):
     # Every value is based on completed candles. The one-bar shift on the
     # Donchian high prevents the current candle from defining its own breakout.
     prior_high = high().hhv(lookback, 1).ref(1)
@@ -47,9 +47,9 @@ def strategy_values(lookback=45, fast=8, slow=89):
     return prior_high, ema_fast, ema_slow, long_signal, trend_exit
 
 if __name__ == '__main__':
-    lookback = input_parameter('lookback', 45)
-    fast = input_parameter('fast_ema', 8)
-    slow = input_parameter('slow_ema', 89)
+    lookback = input_parameter('lookback', 33)
+    fast = input_parameter('fast_ema', 17)
+    slow = input_parameter('slow_ema', 26)
     prior_high, ema_fast, ema_slow, long_signal, trend_exit = strategy_values(
         lookback, fast, slow
     )
@@ -68,7 +68,7 @@ if __name__ == '__main__':
         )
 
     def handle_data(self):
-        params = {'lookback': 45.0, 'fast_ema': 8.0, 'slow_ema': 89.0}
+        params = {'lookback': 33.0, 'fast_ema': 17.0, 'slow_ema': 26.0}
         long_signal = get_Python_indicator(
             indicator_name='DONCHIAN_EMA_10M_BASELINE',
             variable_name='LONG_SIGNAL',

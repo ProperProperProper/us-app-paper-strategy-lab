@@ -6,10 +6,10 @@ Order submission additionally requires --live-paper. Without that flag the
 bot prints signals and intended orders but never submits anything.
 
 Strategy:
-  - 45 completed 10-minute bars for the Donchian breakout
-  - EMA 8 / EMA 89 trend filter
+  - 33 completed 10-minute bars for the Donchian breakout
+  - EMA 17 / EMA 26 trend filter
   - long-only, one position per symbol
-  - 6.38% take profit or 3.95% stop loss
+  - 10.69% take profit or 3.54% stop loss
   - 95% of available cash per entry
 
 Moomoo OpenD must be running on 127.0.0.1:11111 and logged in. This script
@@ -41,12 +41,12 @@ from moomoo import (
 )
 
 from quant_storage import save_candles, save_execution_event
-from quant_api import audit_api, risk_api, strategy_api
+from quant_api import BASELINE, audit_api, risk_api, strategy_api
 
 
 POSITION_FRACTION = 0.95
 POLL_SECONDS = 30
-MIN_BARS = 89 + 45 + 5
+MIN_BARS = 26 + 33 + 5
 STATE_PATH = Path(__file__).with_name("competition_bot_state.json")
 LOG_PATH = Path(__file__).with_name("competition_bot.log")
 
@@ -203,10 +203,10 @@ class CompetitionBot:
                         continue
 
                 if qty > 0:
-                    take_profit = price >= avg * 1.0274
-                    stop_loss = price <= avg * (1 - 0.1324)
+                    take_profit = price >= avg * (1 + float(BASELINE["tp"]))
+                    stop_loss = price <= avg * (1 - float(BASELINE["stop"]))
                     session_exit = bool(signal_data["session_exit"])
-                    if take_profit or stop_loss or session_exit or signal_data["trend_exit"]:
+                    if take_profit or stop_loss or session_exit or signal_data["yellow_exit"] or signal_data["red_exit"]:
                         self.submit(symbol, TrdSide.SELL, int(qty), "EXIT")
                         self.state["pending"][symbol] = "SELL"
                         self.peak_price = 0.0

@@ -1,6 +1,6 @@
 # Paper-trading boundary
 
-Paper execution is intentionally disabled in this public tester-focused build. The execution boundary is retained for research and integration testing, but the dashboard and CLI reject paper-order startup. The legacy competition bot also uses a separate 45-bar / EMA 8-89 baseline; it is not the active mutation runner's 33-bar / EMA 17-26 baseline.
+Paper execution is intentionally disabled in this public tester-focused build. The execution boundary is retained for research and integration testing, but the dashboard and CLI reject paper-order startup. The competition bot and both Moomoo copy-paste strategies now use the active 33-bar / EMA 17-26 baseline. Moomoo execution can still differ because its fills, session handling, and indicator engine are external to the deterministic Python evaluator.
 
 ## Signal-only checks
 
