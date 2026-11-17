@@ -56,6 +56,8 @@ PROFIT_EXIT_RESEARCH_VARIANTS = (
     {"exit_mode": "slow_break", "tp": 0.15, "break_even_trigger": 0.03, "profit_lock_trigger": 0.08, "profit_lock": 0.02, "trail_trigger": 0.08, "trail_pct": 0.025},
     {"exit_mode": "slow_break", "tp": 0.30, "break_even_trigger": 0.04, "profit_lock_trigger": 0.12, "profit_lock": 0.04, "trail_trigger": 0.12, "trail_pct": 0.04},
     {"exit_mode": "trend_cross", "tp": 0.20, "break_even_trigger": 0.03, "profit_lock_trigger": 0.10, "profit_lock": 0.03, "trail_trigger": 0.10, "trail_pct": 0.03},
+    {"exit_mode": "slow_break", "profit_exit_mode": "atr_peak_retrace", "tp": 0.50, "profit_arm_return": 0.08, "profit_lock_return": 0.02, "profit_atr_multiple": 2.5, "profit_min_retrace": 0.03},
+    {"exit_mode": "slow_break", "profit_exit_mode": "atr_peak_retrace", "tp": 0.50, "profit_arm_return": 0.12, "profit_lock_return": 0.04, "profit_atr_multiple": 3.0, "profit_min_retrace": 0.04},
 )
 
 
@@ -121,7 +123,7 @@ def parse_proposal(text: str) -> dict | None:
             value = [value]
         if isinstance(value, list):
             for item in value:
-                allowed = {"lookback", "fast", "slow", "tp", "stop", "break_even_trigger", "break_even_lock", "profit_lock_trigger", "profit_lock", "trail_trigger", "trail_pct", "entry_filter", "atr_buffer", "volume_median_period", "exit_mode"}
+                allowed = {"lookback", "fast", "slow", "tp", "stop", "break_even_trigger", "break_even_lock", "profit_lock_trigger", "profit_lock", "trail_trigger", "trail_pct", "entry_filter", "atr_buffer", "volume_median_period", "exit_mode", "profit_exit_mode", "profit_arm_return", "profit_lock_return", "profit_atr_multiple", "profit_min_retrace"}
                 if isinstance(item, dict) and any(key in item for key in allowed):
                     try:
                         result = {}
@@ -133,6 +135,9 @@ def parse_proposal(text: str) -> dict | None:
                         if item.get("entry_filter") in {"none", "atr", "slope", "volume"}: result["entry_filter"] = item["entry_filter"]
                         if "volume_median_period" in item: result["volume_median_period"] = max(2, min(120, int(item["volume_median_period"])))
                         if item.get("exit_mode") in {"fast_or_slow", "slow_break", "trend_cross"}: result["exit_mode"] = item["exit_mode"]
+                        if item.get("profit_exit_mode") in {"legacy_target_lock", "atr_peak_retrace"}: result["profit_exit_mode"] = item["profit_exit_mode"]
+                        for key, low, high in (("profit_arm_return", 0.01, 0.50), ("profit_lock_return", 0.0, 0.30), ("profit_atr_multiple", 0.25, 10.0), ("profit_min_retrace", 0.005, 0.50)):
+                            if key in item: result[key] = round(max(low, min(high, float(item[key]))), 4)
                         return result
                     except (TypeError, ValueError):
                         return None
@@ -147,7 +152,10 @@ def ask_agent(client: MCPClient | None, antigravity: AntigravityOptimizer | None
         "lookback (integer 5-120), fast EMA (2-30), slow EMA (10-200), tp (0.02-0.50), "
         "stop (0.01-0.25), break-even/profit-lock/trailing-stop thresholds, "
         "entry_filter (none, atr, slope, volume), or exit_mode "
-        "(fast_or_slow, slow_break, trend_cross). Explicitly consider whether "
+        "(fast_or_slow, slow_break, trend_cross). You may also select the "
+        "timeframe-independent atr_peak_retrace profit-capture indicator with "
+        "profit_arm_return, profit_lock_return, profit_atr_multiple, and "
+        "profit_min_retrace. Explicitly consider whether "
         "the exit captures a large profit while protecting an already-profitable "
         "position; do not use time-based exits as a substitute for profit capture. "
         "These are the only safe strategy configuration keys. NVIDIA may suggest; "

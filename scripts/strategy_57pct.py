@@ -22,6 +22,9 @@ BASELINE = {
     "profit_lock_trigger": 0.08, "profit_lock": 0.01,
     "trail_trigger": 0.06, "trail_pct": 0.02,
     "entry_filter": "none", "atr_buffer": 0.10, "volume_median_period": 20,
+    "profit_exit_mode": "legacy_target_lock",
+    "profit_arm_return": 0.08, "profit_lock_return": 0.02,
+    "profit_atr_multiple": 2.5, "profit_min_retrace": 0.03,
 }
 ALLOCATION = 1.0
 SESSION_END = time(15, 45)
@@ -153,6 +156,26 @@ def strategy_signal(frame: pd.DataFrame, params: dict = BASELINE) -> dict:
     return {"bar": str(x.index[-2]), "close": float(bar.close), "ema_fast": float(bar.ema_fast), "ema_slow": float(bar.ema_slow), "raw_long_signal": bool(bar.entry_signal), "downtrend_blocked": bool(bar.downtrend_blocked), "long_signal": warmup_ready and bool(bar.entry_signal) and not bool(bar.downtrend_blocked), "yellow_exit": warmup_ready and bool(bar.yellow_exit), "red_exit": warmup_ready and bool(bar.red_exit), "trend_exit": warmup_ready and bool(bar.trend_exit), "entry_allowed": warmup_ready and bar_time < time(15, 40), "session_exit": bar_time >= time(15, 40), "warmup_ready": warmup_ready, "warmup_status": "FULL" if len(x) >= int(x.attrs["required_warmup_candles"]) else "LIMITED_CACHE", "required_warmup_candles": int(x.attrs["required_warmup_candles"]), "effective_warmup_candles": int(x.attrs["effective_warmup_candles"])}
 
 
+def profit_capture_exit(price: float, entry: float, peak: float, atr: float,
+                        params: dict = BASELINE) -> bool:
+    """Timeframe-independent profit-protection indicator.
+
+    The signal uses only price progress and current volatility: once a trade
+    reaches ``profit_arm_return``, exit when price falls below the stronger of
+    a locked return floor or an ATR/peak retracement floor. It has no clock,
+    session-duration, or fixed-bar holding rule.
+    """
+    if entry <= 0 or peak < entry or price <= 0 or atr < 0:
+        return False
+    arm_return = float(params.get("profit_arm_return", 0.08))
+    if peak < entry * (1.0 + arm_return):
+        return False
+    lock_price = entry * (1.0 + float(params.get("profit_lock_return", 0.02)))
+    atr_floor = peak - float(params.get("profit_atr_multiple", 2.5)) * atr
+    retrace_floor = peak * (1.0 - float(params.get("profit_min_retrace", 0.03)))
+    return price <= max(lock_price, atr_floor, retrace_floor)
+
+
 def _validate_candles(candles: pd.DataFrame) -> None:
     if not candles.index.is_monotonic_increasing:
         raise ValueError("candles must be sorted chronologically")
@@ -194,23 +217,31 @@ def run(candles: pd.DataFrame, params: dict = BASELINE, capital: float = 100000.
             entry = position["entry"]
             price = float(bar.close)
             position["peak_price"] = max(position["peak_price"], price, entry)
-            if price >= entry * float(params.get("break_even_trigger", 0.02)) + entry:
-                position["break_even_armed"] = True
-            if position["peak_price"] >= entry * (1 + float(params.get("profit_lock_trigger", 0.08))):
-                position["profit_lock_armed"] = True
             stop = entry * (1 - float(params.get("stop", 0.0354)))
-            if position["break_even_armed"]:
-                stop = max(stop, entry * (1 + float(params.get("break_even_lock", 0.002))))
-            if position["profit_lock_armed"]:
-                stop = max(stop, entry * (1 + float(params.get("profit_lock", 0.01))))
-            if position["peak_price"] >= entry * (1 + float(params.get("trail_trigger", 0.06))):
-                stop = max(stop, position["peak_price"] * (1 - float(params.get("trail_pct", 0.02))))
+            if params.get("profit_exit_mode", "legacy_target_lock") == "legacy_target_lock":
+                if price >= entry * float(params.get("break_even_trigger", 0.02)) + entry:
+                    position["break_even_armed"] = True
+                if position["peak_price"] >= entry * (1 + float(params.get("profit_lock_trigger", 0.08))):
+                    position["profit_lock_armed"] = True
+                if position["break_even_armed"]:
+                    stop = max(stop, entry * (1 + float(params.get("break_even_lock", 0.002))))
+                if position["profit_lock_armed"]:
+                    stop = max(stop, entry * (1 + float(params.get("profit_lock", 0.01))))
+                if position["peak_price"] >= entry * (1 + float(params.get("trail_trigger", 0.06))):
+                    stop = max(stop, position["peak_price"] * (1 - float(params.get("trail_pct", 0.02))))
             target = entry * (1 + float(params.get("tp", 0.1069)))
             take_profit = price >= target
             stop_loss = price <= stop
+            indicator_exit = (
+                params.get("profit_exit_mode") == "atr_peak_retrace"
+                and profit_capture_exit(
+                    price, entry, position["peak_price"], float(bar.get("atr14", 0.0)), params
+                )
+            )
             reason = None; exit_raw = None; exit_time = stamp
             if take_profit: exit_raw, reason = float(bar.close), "TP"
             elif stop_loss: exit_raw, reason = float(bar.close), "STOP"
+            elif indicator_exit: exit_raw, reason = float(bar.close), "PROFIT_CAPTURE_INDICATOR"
             max_holding = int(params.get("max_holding_bars", 0))
             time_stop = max_holding > 0 and (row_index - position["entry_index"]) >= max_holding
             if reason is None and time_stop: exit_raw, reason = float(bar.close), "TIME_STOP"
