@@ -353,3 +353,51 @@ def walk_forward_replay(candles, fold_results, capital=100000.0, allocation=ALLO
         equity = equity[~equity.index.duplicated(keep="last")]
         equity["drawdown"] = equity.equity / equity.equity.cummax() - 1
     return add_features(frame, BASELINE), all_trades, {"equity": equity, "ending_cash": fold_capital}
+
+
+def blind_session_walk_forward(candles, candidates, capital=100_000.0,
+                               allocation=ALLOCATION, slippage_bps=2.0,
+                               commission=0.0, min_train_sessions=21,
+                               fee_model=None):
+    """Select on prior sessions, then replay exactly one unseen session.
+
+    Each session is flat at its boundary so a candidate cannot carry a
+    position selected with knowledge of a later session. Indicators receive
+    the prior history plus the current session, while evaluation starts at
+    the current session's first candle. The selector never sees the current
+    session before choosing its parameters.
+    """
+    frame = candles.sort_index()
+    sessions = list(frame.index.normalize().drop_duplicates())
+    if len(sessions) <= min_train_sessions:
+        return {"status": "INSUFFICIENT_SESSIONS", "sessions": len(sessions), "records": []}
+    records = []
+    replay_capital = float(capital)
+    all_trades = []
+    for index in range(int(min_train_sessions), len(sessions)):
+        session_start = sessions[index]
+        session_end = sessions[index]
+        if index + 1 < len(sessions):
+            session_end = sessions[index + 1]
+        train = frame.loc[frame.index.normalize() < session_start]
+        current = frame.loc[(frame.index.normalize() >= session_start) & (frame.index.normalize() < session_end)]
+        if train.empty or current.empty:
+            continue
+        scored = []
+        for proposed in candidates:
+            params = {**BASELINE, **proposed}
+            _, train_trades, train_data = run(train, params, capital, allocation, slippage_bps, commission, fee_model=fee_model)
+            train_stats = stats(train_trades, train_data, capital)
+            score = train_stats["total_return_pct"] - 0.35 * abs(train_stats["max_drawdown_pct"])
+            scored.append((score, params, train_stats))
+        _, selected, train_stats = max(scored, key=lambda row: row[0])
+        replay_frame = frame.loc[frame.index <= current.index[-1]]
+        _, trades, data = run(replay_frame, selected, replay_capital, allocation, slippage_bps, commission, evaluation_start=session_start, fee_model=fee_model)
+        session_stats = stats(trades, data, replay_capital)
+        returns = np.array([trade.net_pnl / (trade.entry_price * trade.qty) for trade in trades])
+        if len(returns):
+            replay_capital *= float(np.prod(1 + returns))
+        all_trades.extend(trades)
+        records.append({"session": str(session_start.date()), "train_end": str(train.index[-1]), "selected_params": selected, "train_stats": train_stats, "unseen_session_stats": session_stats})
+    aggregate = stats(all_trades, {"equity": pd.DataFrame()}, capital) if all_trades else {"starting_capital": capital, "ending_equity": capital, "total_return_pct": 0.0, "trades": 0}
+    return {"status": "OK", "train_sessions": int(min_train_sessions), "replayed_sessions": len(records), "aggregate": aggregate, "ending_capital": round(replay_capital, 2), "records": records}

@@ -37,6 +37,7 @@ def load_root_module(name: str, path: Path):
 
 root_strategy = load_root_module("root_strategy_57pct", ROOT / "scripts" / "strategy_57pct.py")
 BASELINE, run, stats = root_strategy.BASELINE, root_strategy.run, root_strategy.stats
+blind_session_walk_forward = root_strategy.blind_session_walk_forward
 from model_client import MCPClient
 from agent_workers import AntigravityOptimizer
 
@@ -244,6 +245,8 @@ def main() -> int:
         label: evaluate(part, dict(BASELINE))["stats"]
         for label, part in (("train", train), ("validation", validation), ("test", test))
     }
+    blind_candidates = [dict(BASELINE)] + [{**BASELINE, **variant} for variant in PROFIT_EXIT_RESEARCH_VARIANTS]
+    blind_evidence = blind_session_walk_forward(frame, blind_candidates, min_train_sessions=21)
     profile = {
         "symbol": "US.APP", "interval": "10m", "rows": len(frame),
         "start": str(frame.index.min()), "end": str(frame.index.max()),
@@ -255,9 +258,19 @@ def main() -> int:
         "close_end": round(float(frame["close"].iloc[-1]), 6),
         "raw_close_to_close_return_pct": round(float((frame["close"].iloc[-1] / frame["close"].iloc[0] - 1) * 100), 3),
         "baseline_evidence": baseline_evidence,
+        "blind_session_walk_forward": {
+            "status": blind_evidence["status"],
+            "train_sessions": blind_evidence.get("train_sessions"),
+            "replayed_sessions": blind_evidence.get("replayed_sessions"),
+            "aggregate": blind_evidence.get("aggregate"),
+            "ending_capital": blind_evidence.get("ending_capital"),
+        },
     }
     run_dir = args.run_dir / ("APP-" + time.strftime("%Y%m%d-%H%M%S"))
     run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "blind_session_walk_forward.json").write_text(
+        json.dumps(blind_evidence, indent=2, default=str) + "\n"
+    )
     stop_file = run_dir / "STOP"
     status_file = args.run_dir / "app_runtime_status.json"
     client = None
