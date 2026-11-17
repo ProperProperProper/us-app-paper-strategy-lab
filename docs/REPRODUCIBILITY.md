@@ -30,19 +30,19 @@ The timestamps above are examples from one local cache. Use the timestamps recor
 
 ## Match the execution model
 
-Use the same symbol (`US.APP`), 10-minute source candles, and candle columns (`open`, `high`, `low`, `close`, `volume`). The interval research layer derives complete-session 10m, 20m, 30m, 40m, 50m, 60m, and 70m bars without crossing session boundaries. It deduplicates by `time_key`, uses a rolling 21-session training window, one unseen session per step, 2 bps slippage per side, zero commission, long-only position, and one-position limit. The base comparison is always the freshly rerun 10m baseline; a candidate may be promoted at a higher interval if its blind replay beats that baseline. The active evaluator executes on completed-candle closes; it does not simulate next-open fills.
+Use the same symbol (`US.APP`), 10-minute source candles, and candle columns (`open`, `high`, `low`, `close`, `volume`). The interval research layer derives complete-session 10m, 20m, 30m, 40m, 50m, 60m, and 70m bars without crossing session boundaries. It deduplicates by `time_key`, uses the first 21 complete sessions for training/selection, then one continuous unseen test from session 22 through the latest candle, 2 bps slippage per side, zero commission, long-only position, and one-position limit. The base comparison is always the freshly rerun 10m baseline; a candidate may be promoted at a higher interval if its blind replay beats that baseline. The active evaluator executes on completed-candle closes; it does not simulate next-open fills.
 
-The 21-session training window and one-session test step are intentional: they prioritize the latest regime and expose changes one session at a time. Comparisons using another training window or test step are separate experiments.
+The 21-session training boundary and continuous test are intentional: they prevent per-session reselection and expose the entire subsequent period as one unseen path. Comparisons using another training boundary are separate experiments.
 
-Hard rule: each decision uses every candle in the immediately preceding 21 complete sessions, then tests exactly the next unseen session. The training window advances one session at a time until the current data end. There are no full-window scores, fixed validation slices, or multi-session test chunks.
+Hard rule: each decision uses every candle in the first 21 complete sessions, then tests every remaining candle continuously to the current data end. There are no rolling reselections, fixed validation slices, or test chunks.
 
-Promotion is a separate decision from measurement: candidates are judged by the rolling one-session blind replay against the baseline replay. There is no chunked test gate.
+Promotion is a separate decision from measurement: candidates are judged by the continuous unseen replay against the baseline replay. There is no chunked test gate.
 
 The paper execution process reloads approved strategy code and configuration at completed-candle boundaries. The active code/config commit and hot-swapped run identifier must be recorded when comparing paper results.
 
 Paper session coverage is the full US regular session represented by the Moomoo 10-minute candles; comparisons must not silently truncate the session or mix partial-session data.
 
-Every rejection artifact also contains a fresh baseline replay over the same rolling one-session sequence and full current window.
+Every rejection artifact also contains a fresh 10m baseline replay over the same continuous train-then-test sequence and full current data window.
 
 Before comparing reports, record:
 

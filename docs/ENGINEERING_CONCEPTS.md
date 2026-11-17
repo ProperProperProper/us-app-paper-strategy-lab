@@ -16,7 +16,7 @@ Candidate strategies are represented as structured parameters, indicator specifi
 
 ## Chronological blind replay
 
-Data is kept chronological. After 21 complete training sessions, the mutation loop selects before the next session and scores exactly that one unseen session, then rolls forward one session until the data ends. There are no fixed validation partitions or multi-session test blocks.
+Data is kept chronological. The mutation loop selects using the first 21 complete training sessions, then scores every subsequent candle continuously through the data end. There are no rolling reselections, fixed validation partitions, or multi-session test blocks.
 
 ## Adversarial agent roles
 

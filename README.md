@@ -14,7 +14,7 @@ The research lab and paper bot are one pipeline:
 
 1. Moomoo OpenD supplies validated 10-minute US.APP candles. The candles and derived interval bars are stored in SQLite.
 2. MLX/local, NVIDIA, and optional Antigravity agents propose bounded strategy hypotheses. They do not decide performance and do not submit orders.
-3. The deterministic evaluator tests every candidate on complete 10m, 20m, 30m, 40m, 50m, 60m, and 70m session bars using a blind rolling replay: 21 complete sessions of history, then one unseen session, repeated to the data end.
+3. The deterministic evaluator tests every candidate on complete 10m, 20m, 30m, 40m, 50m, 60m, and 70m session bars using one continuous blind replay: the first 21 complete sessions are training/selection data, then every candle from session 22 through the latest candle is unseen test data.
 4. The fresh 10m baseline is always the comparison reference. A candidate may win on a higher interval when its blind replay beats that 10m baseline.
 5. An accepted candidate writes the local `paper_bot_live_strategy.json` artifact with its parameters, strategy version, and selected interval.
 6. The paper bot hot-swaps approved parameters, interval, and strategy code at a completed-bar boundary. It receives 10m Moomoo data, aggregates it locally when required, and submits only signal-driven orders to `TrdEnv.SIMULATE`.

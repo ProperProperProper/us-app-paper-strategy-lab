@@ -24,11 +24,11 @@ Historical results are evidence from a specific dataset and execution model, not
 - Signals use completed bars only.
 - Entries and exits are simulated at the completed candle close with configured slippage.
 - After the first 21 complete sessions, parameters are selected using only the immediately preceding 21 sessions.
-- The next complete session is the unseen out-of-sample decision. The training window then advances by one session and the process repeats to the end of the data.
-- This one-session roll-forward maximizes recency and catches regime changes without hiding results inside multi-session chunks; it does not guarantee the best future strategy.
+- Session 22 onward is one continuous unseen out-of-sample replay through the latest candle. The training boundary does not advance and the strategy is not reselected during the test.
+- This continuous replay prevents hidden chunks and per-session reselection; it does not guarantee the best future strategy.
 - Blind replay re-selects from prior-session hypotheses before every session, then evaluates exactly that unseen session. There is no separate fixed validation slice or chunked test.
 - Slippage, position limits, duplicate trades, chronology, and drawdown are checked locally. The generic evaluator supports fee models, but the current mutation runner passes zero commission and no fee model.
-- A candidate cannot replace the baseline merely because it has a higher in-sample score. Promotion uses rolling one-session blind replay against a fresh baseline replay: it requires higher aggregate return, at least three replay trades, and no more than one percentage point of additional replay drawdown.
+- A candidate cannot replace the baseline merely because it has a higher in-sample score. Promotion uses continuous blind replay against a fresh baseline replay: it requires higher aggregate return, at least three replay trades, and no more than one percentage point of additional replay drawdown.
 - Before every rejection, the runner freshly re-tests the unchanged baseline on the same final-test slice and full current window, and stores those metrics alongside the candidate decision.
 
 ## Candidate types

@@ -390,43 +390,32 @@ def blind_session_walk_forward(candles, candidates, capital=100_000.0,
                                allocation=ALLOCATION, slippage_bps=2.0,
                                commission=0.0, min_train_sessions=21,
                                fee_model=None):
-    """Select on the prior 21 sessions, then replay one unseen session.
+    """Select on the first 21 sessions, then replay all remaining data once.
 
-    The training window rolls forward one session at a time. The selector
-    never sees the next session before choosing its parameters. Each test is
-    one complete session, so the sequence is equivalent to live operation.
+    The first complete sessions are training/selection data. The test starts
+    at the next candle and runs continuously to the most recent candle. There
+    is no per-session reselection, chunking, or rolling test block.
     """
     frame = candles.sort_index()
     sessions = list(frame.index.normalize().drop_duplicates())
     if len(sessions) <= min_train_sessions:
         return {"status": "INSUFFICIENT_SESSIONS", "sessions": len(sessions), "records": []}
-    records = []
-    replay_capital = float(capital)
-    all_trades = []
     train_size = max(1, int(min_train_sessions))
-    for index in range(train_size, len(sessions)):
-        session_start = sessions[index]
-        session_end = sessions[index + 1] if index + 1 < len(sessions) else sessions[-1] + pd.Timedelta(days=1)
-        train_start = sessions[index - train_size]
-        train = frame.loc[(frame.index.normalize() >= train_start) & (frame.index.normalize() < session_start)]
-        current = frame.loc[(frame.index.normalize() >= session_start) & (frame.index.normalize() < session_end)]
-        if train.empty or current.empty:
-            continue
-        scored = []
-        for proposed in candidates:
-            params = {**BASELINE, **proposed}
-            _, train_trades, train_data = run(train, params, capital, allocation, slippage_bps, commission, fee_model=fee_model)
-            train_stats = stats(train_trades, train_data, capital)
-            score = train_stats["total_return_pct"] - 0.35 * abs(train_stats["max_drawdown_pct"])
-            scored.append((score, params, train_stats))
-        _, selected, train_stats = max(scored, key=lambda row: row[0])
-        replay_frame = frame.loc[frame.index <= current.index[-1]]
-        _, trades, data = run(replay_frame, selected, replay_capital, allocation, slippage_bps, commission, evaluation_start=session_start, fee_model=fee_model)
-        session_stats = stats(trades, data, replay_capital)
-        returns = np.array([trade.net_pnl / (trade.entry_price * trade.qty) for trade in trades])
-        if len(returns):
-            replay_capital *= float(np.prod(1 + returns))
-        all_trades.extend(trades)
-        records.append({"test_session": str(session_start.date()), "train_start": str(train.index[0]), "train_end": str(train.index[-1]), "selected_params": selected, "train_stats": train_stats, "unseen_session_stats": session_stats})
-    aggregate = stats(all_trades, {"equity": pd.DataFrame()}, capital) if all_trades else {"starting_capital": capital, "ending_equity": capital, "total_return_pct": 0.0, "trades": 0}
-    return {"status": "OK", "train_sessions": train_size, "replayed_sessions": len(records), "aggregate": aggregate, "ending_capital": round(replay_capital, 2), "records": records}
+    train_start = sessions[0]
+    test_start = sessions[train_size]
+    train = frame.loc[(frame.index.normalize() >= train_start) & (frame.index.normalize() < test_start)]
+    test = frame.loc[frame.index.normalize() >= test_start]
+    if train.empty or test.empty:
+        return {"status": "INSUFFICIENT_TEST_DATA", "sessions": len(sessions), "train_sessions": train_size, "records": []}
+    scored = []
+    for proposed in candidates:
+        params = {**BASELINE, **proposed}
+        _, train_trades, train_data = run(train, params, capital, allocation, slippage_bps, commission, fee_model=fee_model)
+        train_stats = stats(train_trades, train_data, capital)
+        score = train_stats["total_return_pct"] - 0.35 * abs(train_stats["max_drawdown_pct"])
+        scored.append((score, params, train_stats))
+    _, selected, train_stats = max(scored, key=lambda row: row[0])
+    _, trades, data = run(frame, selected, capital, allocation, slippage_bps, commission, evaluation_start=test_start, fee_model=fee_model)
+    aggregate = stats(trades, data, capital) if trades else {"starting_capital": capital, "ending_equity": capital, "total_return_pct": 0.0, "trades": 0}
+    record = {"train_start": str(train.index[0]), "train_end": str(train.index[-1]), "test_start": str(test.index[0]), "test_end": str(test.index[-1]), "selected_params": selected, "train_stats": train_stats, "continuous_unseen_test_stats": aggregate}
+    return {"status": "OK", "train_sessions": train_size, "test_sessions": len(sessions) - train_size, "replayed_sessions": len(sessions) - train_size, "test_start": str(test.index[0]), "test_end": str(test.index[-1]), "aggregate": aggregate, "ending_capital": aggregate.get("ending_equity", capital), "records": [record]}

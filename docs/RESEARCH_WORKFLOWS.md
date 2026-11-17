@@ -7,9 +7,9 @@ python3 scripts/app_strategy_lab.py --db quant_dashboard.sqlite3 \
   --agents 2 --candidates 100 --providers local,nvidia,antigravity
 ```
 
-The loop defaults to 90 calendar days and generates bounded proposals, evaluates them using a rolling 21-session training window and one unseen session at a time, and writes run summaries plus the promoted parameter file locally. It does not provide a persistent learning-memory store.
+The loop loads the requested data window, defaults to 90 calendar days so the test can reach the latest candle, and generates bounded proposals. It selects using the first 21 complete sessions, then evaluates continuously from session 22 through the latest candle and writes run summaries plus the promoted parameter file locally. It does not provide a persistent learning-memory store.
 
-After 21 complete sessions are available, the lab tests exactly the next session, then advances the training window one session and repeats until the data ends. This is a regime-focused decision process: it emphasizes the latest market behavior and exposes changes one session at a time. It is an adaptation trade-off, not a guarantee of future performance.
+After 21 complete sessions are available, the lab selects once and tests every subsequent candle continuously to the data end. This avoids hidden chunks and per-session reselection while still keeping the entire test period unseen at selection time. It is a fixed-boundary trade-off, not a guarantee of future performance.
 
 ## Required research protocol
 
@@ -19,7 +19,7 @@ Every strategy investigation follows this order:
 2. Keep buy-and-hold as a benchmark only; never compare it as though it had the same entry policy.
 3. Test strategy variants, not only scalar parameters. For profit research this includes target, break-even, profit-lock, trailing, trend-exit, and the `atr_peak_retrace` custom indicator.
 4. Use the longest available bounded history that matches the research request; the active lab default is 90 calendar days.
-5. Evaluate chronologically with the hard rolling blind protocol: train on all candles in the immediately preceding 21 complete sessions, test exactly the next unseen session, then advance one session. Report trade count and drawdown with every return.
+5. Evaluate chronologically with the hard continuous blind protocol: train on all candles in the first 21 complete sessions, then test every candle from session 22 through the latest candle without reselection or chunking. Report trade count and drawdown with every return.
 6. Compare every candidate interval against a freshly rerun 10m baseline. Promote only when the selected interval's blind replay improves that baseline; a high full-window result alone is not sufficient.
 
 Agents may propose hypotheses, but the local deterministic evaluator is the only authority for fills, returns, drawdown, trade count, and promotion.

@@ -5,7 +5,7 @@ The lab uses a proposal-and-evaluation design:
 1. The US.APP runner loads the requested bounded candle window (90 calendar days by default) and splits it chronologically.
 2. Local and NVIDIA gateway workers, plus optional Antigravity, propose bounded mutations.
 3. The local evaluator aggregates the 10-minute source candles into 10m, 20m, 30m, 40m, 50m, 60m, and 70m complete-session bars and scores every candidate on each interval.
-4. The runner performs a blind one-session walk-forward: it selects from the prior 21 sessions, then replays exactly the next complete session before advancing one session. Each round also includes explicit profit-capture strategy variants.
+4. The runner selects once using the first 21 complete sessions, then performs one continuous blind replay from session 22 through the latest candle. Each round also includes explicit profit-capture strategy variants.
 5. The selected parameters are written to the local live-strategy JSON artifact.
 6. The browser console exposes process status and the latest run artifact.
 
@@ -52,4 +52,4 @@ The evaluator, not a model, decides returns, drawdown, trade counts, chronology,
 
 ## Current limitations
 
-The runner uses rolling blind replay as a hard rule: it uses every candle in the immediately preceding 21 complete sessions, selects before the next session, and replays exactly one unseen session, advancing one session at a time to the end of the data. No full-window score, fixed validation partition, or multi-session test block is used for promotion. SQLite persists source/derived candles, runs, optimizer results, and execution events; it is not a trained-model memory store. Runtime artifacts remain outside Git. The system is long-only, one-position, and paper/tester-only in this public build.
+The runner uses a continuous blind replay as a hard rule: it uses all candles in the first 21 complete sessions for selection, then replays every remaining candle through the current data end without reselection, chunking, or session blocks. No full-window score or fixed validation partition is used for promotion. SQLite persists source/derived candles, runs, optimizer results, and execution events; it is not a trained-model memory store. Runtime artifacts remain outside Git. The system is long-only, one-position, and paper/tester-only in this public build.
