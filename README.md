@@ -8,6 +8,19 @@ This repository is designed for paper-trading research and strategy experimentat
 
 The system is research-first: model output is a proposal, the deterministic evaluator is authoritative, and paper order placement is opt-in. Results are not financial advice or a guarantee of future performance.
 
+## How research becomes paper execution
+
+The research lab and paper bot are one pipeline:
+
+1. Moomoo OpenD supplies validated 10-minute US.APP candles. The candles and derived interval bars are stored in SQLite.
+2. MLX/local, NVIDIA, and optional Antigravity agents propose bounded strategy hypotheses. They do not decide performance and do not submit orders.
+3. The deterministic evaluator tests every candidate on complete 10m, 20m, 30m, 40m, 50m, 60m, and 70m session bars using a blind rolling replay: 21 complete sessions of history, then one unseen session, repeated to the data end.
+4. The fresh 10m baseline is always the comparison reference. A candidate may win on a higher interval when its blind replay beats that 10m baseline.
+5. An accepted candidate writes the local `paper_bot_live_strategy.json` artifact with its parameters, strategy version, and selected interval.
+6. The paper bot hot-swaps approved parameters, interval, and strategy code at a completed-bar boundary. It receives 10m Moomoo data, aggregates it locally when required, and submits only signal-driven orders to `TrdEnv.SIMULATE`.
+
+The browser console at `http://127.0.0.1:8790` shows both research-lab state and paper-bot health. The legacy 8780 dashboard is not required for the current pipeline.
+
 **Keywords:** US.APP, Moomoo OpenD, paper trading, algorithmic trading, quantitative finance, backtesting, strategy mutation, AI agents, Apple Silicon, MLX, NVIDIA models, Antigravity, SQLite.
 
 ## Quick start
@@ -38,6 +51,8 @@ Moomoo OpenD must be available at `127.0.0.1:11111` for fresh candles. Local dat
 - `scripts/` — all Python entry points and research components.
 - `docs/` — project documentation and research notes.
 - `.github/workflows/` — repository checks.
+
+The public repository contains the code and reproducibility assets. Local SQLite databases, promoted runtime configuration, logs, account selection, and generated run artifacts stay outside Git and are backed up separately when configured.
 
 ## Safety
 

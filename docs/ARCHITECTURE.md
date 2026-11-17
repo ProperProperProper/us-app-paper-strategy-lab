@@ -9,6 +9,31 @@ The lab uses a proposal-and-evaluation design:
 5. The selected parameters are written to the local live-strategy JSON artifact.
 6. The browser console exposes process status and the latest run artifact.
 
+## Research-to-bot handoff
+
+The handoff is file-and-database based, not model-to-order based:
+
+```text
+Moomoo OpenD
+    ↓ validated 10m source candles
+SQLite candle store ───────────────┐
+    ↓                              │
+proposal agents → local evaluator  │
+                    ↓              │
+          blind interval comparison│
+                    ↓              │
+       promoted runtime JSON       │
+                    ↓              │
+paper bot ← 10m feed + local interval aggregation
+    ↓
+Moomoo SIMULATE order path only
+```
+
+The evaluator records the selected interval and parameters. The paper bot
+reloads that artifact and the strategy module at a completed-bar boundary. A
+failed reload leaves the last known-good runtime active. The bot never trusts a
+model response for fills, risk, or order authorization.
+
 The evaluator, not a model, decides returns, drawdown, trade counts, chronology, and candidate metrics. The base comparison is always a freshly rerun 10m baseline, but a candidate may win on a higher tested interval when its blind replay beats that 10m baseline. The promoted interval and strategy code are hot-swappable in the paper bot. Generated source is not executed as part of candidate evaluation. Fee-model support exists in the shared strategy engine, but the current mutation runner uses zero commission. Source and derived interval candles are persisted in SQLite.
 
 ## Main components
@@ -27,4 +52,4 @@ The evaluator, not a model, decides returns, drawdown, trade counts, chronology,
 
 ## Current limitations
 
-The runner uses rolling blind replay as a hard rule: it uses every candle in the immediately preceding 21 complete sessions, selects before the next session, and replays exactly one unseen session, advancing one session at a time to the end of the data. No full-window score, fixed validation partition, or multi-session test block is used for decisions. The system does not run a supervisor or persist learned memory in this repository. Runtime artifacts remain outside Git. The system is long-only, one-position, and paper/tester-only in this public build.
+The runner uses rolling blind replay as a hard rule: it uses every candle in the immediately preceding 21 complete sessions, selects before the next session, and replays exactly one unseen session, advancing one session at a time to the end of the data. No full-window score, fixed validation partition, or multi-session test block is used for promotion. SQLite persists source/derived candles, runs, optimizer results, and execution events; it is not a trained-model memory store. Runtime artifacts remain outside Git. The system is long-only, one-position, and paper/tester-only in this public build.

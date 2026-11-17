@@ -27,11 +27,13 @@ python3 scripts/competition_bot.py US.APP --acc-id "$COMPETITION_SIM_ACCOUNT_ID"
 
 Set `COMPETITION_SIM_ACCOUNT_ID` only in the local shell from the competition SIMULATE account shown by `--list-accounts`; never commit it. Without `--live-paper`, the bot remains signal-only. Do not provide credentials or account identifiers in source, documentation, issues, or reports.
 
-## Dashboard
+## Current research dashboard
 
 ```sh
-python3 scripts/quant_dashboard.py
-open http://127.0.0.1:8780
+python3 scripts/research_console.py
+open http://127.0.0.1:8790
 ```
 
-The legacy dashboard caches candles and displays backtest and risk information. Its paper-execution control is also forced through `TrdEnv.SIMULATE`; the current research console and direct bot command are the preferred continuous-lab interfaces.
+The research console shows the continuous lab and Paper bot health. The
+legacy 8780 dashboard remains an optional tester interface; its paper-execution
+control is also forced through `TrdEnv.SIMULATE`.

@@ -19,8 +19,8 @@ Every strategy investigation follows this order:
 2. Keep buy-and-hold as a benchmark only; never compare it as though it had the same entry policy.
 3. Test strategy variants, not only scalar parameters. For profit research this includes target, break-even, profit-lock, trailing, trend-exit, and the `atr_peak_retrace` custom indicator.
 4. Use the longest available bounded history that matches the research request; the active lab default is 90 calendar days.
-5. Evaluate chronologically, preserve an untouched final test segment, and report trade count and drawdown with every return.
-6. Promote a candidate only after it improves the relevant holdout evidence; a high full-window result alone is not sufficient.
+5. Evaluate chronologically with the hard rolling blind protocol: train on all candles in the immediately preceding 21 complete sessions, test exactly the next unseen session, then advance one session. Report trade count and drawdown with every return.
+6. Compare every candidate interval against a freshly rerun 10m baseline. Promote only when the selected interval's blind replay improves that baseline; a high full-window result alone is not sufficient.
 
 Agents may propose hypotheses, but the local deterministic evaluator is the only authority for fills, returns, drawdown, trade count, and promotion.
 Agent prompts include deterministic data evidence for the active window: exact timestamps, candle and session counts, endpoint prices, raw close-to-close movement, and baseline training/final-test metrics. Agents must ground challenges in that evidence and may not invent trades or performance.

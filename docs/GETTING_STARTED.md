@@ -22,6 +22,25 @@ Use the console or `scripts/app_strategy_lab.py` for repeatable US.APP mutation 
 
 Create `strategy_lab_runs/STOP` or press Ctrl-C to stop gracefully. The runner stops at the next safe boundary.
 
+## Run the paper bot
+
+With Moomoo OpenD running and a local SIMULATE account selected:
+
+```sh
+python3 scripts/competition_bot.py US.APP \
+  --acc-id "$COMPETITION_SIM_ACCOUNT_ID" \
+  --interval 30 --live-paper
+```
+
+The bot reads the promoted local artifact when present. It stores incoming
+10-minute candles in SQLite, aggregates the promoted 10–70m interval locally,
+and hot-swaps approved strategy code/config without a process restart. The
+console's Paper bot panel shows process state, SIMULATE mode, last candle
+refresh, and recent errors.
+
+The research loop does not place orders directly. Its only handoff to the bot
+is the accepted runtime artifact; the bot remains the sole order submitter.
+
 ## Conventions
 
 - Put executable Python files in `scripts/`.
