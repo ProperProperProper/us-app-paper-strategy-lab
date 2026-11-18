@@ -56,7 +56,7 @@ The evaluator, not a model, decides returns, drawdown, trade counts, chronology,
 - `scripts/app_strategy_lab.py` — US.APP mutation runner and promotion boundary.
 - `scripts/research_console.py` — local browser console and API.
 - `scripts/model_client.py` — MCP gateway client for local/NVIDIA proposals.
-- `scripts/agent_workers.py` — optional Antigravity proposal worker.
+- `scripts/agent_workers.py` — Antigravity controller and proposal worker.
 - `scripts/strategy_57pct.py` — deterministic strategy and walk-forward primitives.
 - `scripts/quant_storage.py` — SQLite persistence.
 - `scripts/quant_api.py` — shared data, risk, strategy, and audit interfaces.

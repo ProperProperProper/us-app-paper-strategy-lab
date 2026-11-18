@@ -31,13 +31,13 @@ Proposal workers are not treated as a voting pool. Explorer, critic, risk-review
 Candidate results, provider responses, status, promoted strategy parameters,
 and agent-to-agent messages are written to local run JSON and SQLite artifacts.
 Long-term model adapters remain external runtime state, while the research
-conversation and evidence history persist locally. Generated artifacts are
-excluded from the public repository.
+conversation, structured evidence, and learning handoffs persist locally in
+SQLite. Generated artifacts are excluded from the public repository.
 
 ## Failure handling
 
-Provider failures are caught at the proposal boundary and the deterministic baseline remains available. There is no in-repository supervisor or automatic restart loop in the current runner.
+Provider failures are handled at the proposal boundary; Antigravity failure is fatal to the mutation round because it is the required controller, while the deterministic baseline remains the reference. `scripts/session_monitor.py` provides the session supervisor: it checks OpenD, console health, SQLite integrity, runtime faults, and code freshness, and restarts the lab, console, or SIMULATE paper bot when required during the session.
 
 ## Security boundaries
 
-Credentials remain in local services or the macOS Keychain. The public repository contains no account identifiers, API keys, runtime databases, generated logs, or local machine paths. Paper execution is disabled in this build.
+Credentials remain in local services or the macOS Keychain. The public repository contains no account identifiers, API keys, runtime databases, generated logs, or local machine paths. Paper execution is available only when explicitly enabled and is forced through Moomoo `TrdEnv.SIMULATE`; live trading is not supported in this build.

@@ -46,7 +46,7 @@ python3 scripts/app_strategy_lab.py \
   --providers local,nvidia,antigravity --continuous
 ```
 
-Antigravity is optional. Set `ANTIGRAVITY_BIN` and `ANTIGRAVITY_MODEL` if its executable or model differs from the local defaults. It is a proposal worker only; the deterministic evaluator remains authoritative.
+Antigravity is required as the mutation coordinator/controller. Set `ANTIGRAVITY_BIN` and `ANTIGRAVITY_MODEL` if its executable or model differs from the local defaults. If Antigravity cannot authenticate or respond, the mutation lab stops rather than bypassing the controller. The deterministic evaluator remains authoritative for all metrics and promotion decisions.
 
 ## What this repository does not provide
 
@@ -54,4 +54,4 @@ Antigravity is optional. Set `ANTIGRAVITY_BIN` and `ANTIGRAVITY_MODEL` if its ex
 - MLX model downloads.
 - NVIDIA credentials or account configuration.
 - A persistent launchd service for the lab itself.
-- A supervisor that restarts the lab after a crash.
+- The optional `scripts/session_monitor.py` supervisor, which restarts the lab, console, or paper bot during the US session.

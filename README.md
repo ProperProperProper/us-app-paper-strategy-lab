@@ -13,7 +13,7 @@ The system is research-first: model output is a proposal, the deterministic eval
 The research lab and paper bot are one pipeline:
 
 1. Moomoo OpenD supplies validated 10-minute US.APP candles. The candles and derived interval bars are stored in SQLite.
-2. MLX/local, NVIDIA, and optional Antigravity agents propose bounded strategy hypotheses. They do not decide performance and do not submit orders.
+2. MLX/local and NVIDIA agents propose bounded strategy hypotheses; required Antigravity coordinates and configures the proposals. None of the agents decides performance or submits orders.
 3. The deterministic evaluator tests every candidate on complete 10m, 20m, 30m, 40m, 50m, 60m, and 70m session bars using one continuous blind replay: the first 21 complete sessions are training/selection data, then every candle from session 22 through the latest candle is unseen test data.
 4. The fresh 10m baseline is always the comparison reference. A candidate may win on a higher interval when its blind replay beats that 10m baseline.
 5. An accepted candidate writes the local `paper_bot_live_strategy.json` artifact with its parameters, strategy version, and selected interval.
