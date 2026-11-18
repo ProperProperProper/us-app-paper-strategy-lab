@@ -22,6 +22,12 @@ Use the console or `scripts/app_strategy_lab.py` for repeatable US.APP mutation 
 
 Create `strategy_lab_runs/STOP` or press Ctrl-C to stop gracefully. The runner stops at the next safe boundary.
 
+For session-time supervision of the lab, console, and SIMULATE paper bot, run:
+
+```sh
+python3 scripts/session_monitor.py
+```
+
 ## Run the paper bot
 
 With Moomoo OpenD running and a local SIMULATE account selected:

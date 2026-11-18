@@ -20,7 +20,7 @@ The runner uses all available deduplicated candles in the local SQLite cache unl
 ```sh
 python3 scripts/app_strategy_lab.py \
   --db quant_dashboard.sqlite3 \
-  --start '2026-08-18 16:00:00' \
+  --start '2026-01-02 09:40:00' \
   --end '2026-11-16 16:00:00' \
   --agents 2 --candidates 100 \
   --providers local,nvidia,antigravity
