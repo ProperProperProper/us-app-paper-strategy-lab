@@ -116,7 +116,7 @@ def write_live_strategy(symbol: str, interval: int, params: dict, run_id: str) -
     return payload
 
 
-def load_frame(db_path: Path, lookback_days: int = 90, start: str | None = None,
+def load_frame(db_path: Path, start: str | None = None,
                end: str | None = None) -> pd.DataFrame:
     with sqlite3.connect(db_path) as db:
         frame = pd.read_sql_query(
@@ -135,8 +135,6 @@ def load_frame(db_path: Path, lookback_days: int = 90, start: str | None = None,
         raise RuntimeError("No candles remain after the requested end timestamp")
     if start is not None:
         frame = frame.loc[frame.index >= pd.Timestamp(start)]
-    else:
-        frame = frame.loc[frame.index >= frame.index.max() - pd.Timedelta(days=max(1, int(lookback_days)))]
     if frame.empty:
         raise RuntimeError("No candles remain after the requested date window")
     return frame[["open", "high", "low", "close", "volume"]].astype(float)
@@ -312,14 +310,13 @@ def main() -> int:
     ap.add_argument("--rounds", type=int, default=20)
     ap.add_argument("--agents", type=int, default=2)
     ap.add_argument("--candidates", type=int, default=100)
-    ap.add_argument("--lookback-days", type=int, default=90)
     ap.add_argument("--start", help="inclusive candle timestamp, preferably ISO 8601 without timezone")
     ap.add_argument("--end", help="inclusive candle timestamp, preferably ISO 8601 without timezone")
     ap.add_argument("--providers", default="antigravity")
     ap.add_argument("--continuous", action="store_true")
     args = ap.parse_args()
     providers = [x.strip() for x in args.providers.split(",") if x.strip()]
-    frame = load_frame(args.db, args.lookback_days, args.start, args.end)
+    frame = load_frame(args.db, args.start, args.end)
     persist_interval_frames(args.db, frame)
     baseline_evidence = {
         "current_window_10m": blind_session_walk_forward(frame, [dict(BASELINE)], min_train_sessions=TRAIN_SESSIONS)["aggregate"]
@@ -329,7 +326,7 @@ def main() -> int:
     profile = {
         "symbol": "US.APP", "interval": "10m", "rows": len(frame),
         "start": str(frame.index.min()), "end": str(frame.index.max()),
-        "lookback_days": int(args.lookback_days), "lookback_role": "source_window_only_not_a_rolling_test_window", "training_sessions": TRAIN_SESSIONS, "requested_start": args.start,
+        "data_window_policy": "all_available_candles_or_explicit_start_end", "training_sessions": TRAIN_SESSIONS, "requested_start": args.start,
         "requested_end": args.end, "rows_available_for_rolling_replay": len(frame),
         "sessions": int(frame.index.normalize().nunique()),
         "close_start": round(float(frame["close"].iloc[0]), 6),

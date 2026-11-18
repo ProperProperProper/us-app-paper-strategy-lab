@@ -2,7 +2,7 @@
 
 The lab uses a proposal-and-evaluation design:
 
-1. The US.APP runner loads the requested bounded candle window (90 calendar days by default) and splits it chronologically.
+1. The US.APP runner loads all available deduplicated candles, or the explicitly requested timestamp window, and splits them chronologically.
 2. Local and NVIDIA gateway workers propose bounded mutations; mandatory Antigravity coordinates, challenges, and configures them.
 3. The local evaluator aggregates the 10-minute source candles into 10m, 20m, 30m, 40m, 50m, 60m, and 70m complete-session bars and scores every candidate on each interval.
 4. The runner selects once using the first 21 complete sessions, then performs one continuous blind replay from session 22 through the latest candle. Each round also includes explicit profit-capture strategy variants.

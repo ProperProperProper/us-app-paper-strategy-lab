@@ -1,6 +1,6 @@
 # Reproducible research
 
-Results are reproducible only when the Python environment, candle snapshot, timestamp window, strategy commit, and execution settings match. Moomoo OpenD can revise or return a different historical candle set, so “90 days” by itself is not a reproducible dataset.
+Results are reproducible only when the Python environment, candle snapshot, timestamp window, strategy commit, and execution settings match. Moomoo OpenD can revise or return a different historical candle set, so a calendar-day lookback by itself is not a reproducible dataset.
 
 ## Pin the environment
 
@@ -15,7 +15,7 @@ python -m pip install -r requirements.txt
 
 ## Use an explicit candle window
 
-The runner defaults to the latest 90 calendar days in the local SQLite cache. For comparable results, provide the same inclusive timestamps to every copy:
+The runner uses all available deduplicated candles in the local SQLite cache unless explicit inclusive timestamps are provided. For comparable results, provide the same inclusive timestamps to every copy:
 
 ```sh
 python3 scripts/app_strategy_lab.py \
@@ -54,9 +54,9 @@ Before comparing reports, record:
 
 Results from different candle snapshots or commits must be reported as different experiments, not merged into one performance claim.
 
-## Included snapshot
+## Candle source
 
-The repository includes `data/us_app_10m_2026-08-18_2026-11-16.csv` and its manifest. It is a sanitized 90-day OHLCV snapshot with no account information. Verify its SHA-256 against the manifest, then run against the fixed timestamps above. The snapshot is the comparison dataset; Moomoo OpenD is only needed to obtain newer data or create another explicitly identified experiment.
+The public repository does not bundle a stale calendar-day snapshot. The comparison dataset is the deduplicated 10-minute candle set in the local SQLite cache, or an explicitly exported snapshot created with `scripts/export_candle_snapshot.py`. Record its SHA-256, first/last timestamps, row count, and source when sharing results. Moomoo OpenD is needed to obtain newer data or create another explicitly identified experiment.
 
 To create a new explicitly identified snapshot from a local cache:
 
