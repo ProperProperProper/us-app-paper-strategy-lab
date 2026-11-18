@@ -327,7 +327,7 @@ def main() -> int:
         "symbol": "US.APP", "interval": "10m", "rows": len(frame),
         "start": str(frame.index.min()), "end": str(frame.index.max()),
         "data_window_policy": "all_available_candles_or_explicit_start_end", "training_sessions": TRAIN_SESSIONS, "requested_start": args.start,
-        "requested_end": args.end, "rows_available_for_rolling_replay": len(frame),
+        "requested_end": args.end, "rows_available_for_continuous_replay": len(frame),
         "sessions": int(frame.index.normalize().nunique()),
         "close_start": round(float(frame["close"].iloc[0]), 6),
         "close_end": round(float(frame["close"].iloc[-1]), 6),
