@@ -8,7 +8,11 @@ Models propose; deterministic Python code evaluates. This keeps scoring, fees, s
 
 ## Structured orchestration
 
-The runner delegates bounded proposal requests to configured providers and aggregates their structured parameter proposals. It does not currently implement a persistent reflection or long-term learning store.
+The runner delegates bounded proposal requests to configured providers and
+records structured handoffs in the persistent `agent_messages` SQLite ledger.
+Each round records proposals, controller configuration, deterministic
+evaluation, promotion, and the learning handoff to MLX. The evaluator remains
+the only source of performance truth.
 
 ## Guarded experimentation
 
@@ -24,7 +28,11 @@ Proposal workers are not treated as a voting pool. Explorer, critic, risk-review
 
 ## Run artifacts and auditability
 
-Candidate results, provider responses, status, and promoted strategy parameters are written to local run JSON files. Long-term learned memory, supervisor state, and database-backed mutation history are not implemented in this repository. Generated artifacts are excluded from the public repository.
+Candidate results, provider responses, status, promoted strategy parameters,
+and agent-to-agent messages are written to local run JSON and SQLite artifacts.
+Long-term model adapters remain external runtime state, while the research
+conversation and evidence history persist locally. Generated artifacts are
+excluded from the public repository.
 
 ## Failure handling
 

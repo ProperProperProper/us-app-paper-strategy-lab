@@ -29,6 +29,21 @@ paper bot ← 10m feed + local interval aggregation
 Moomoo SIMULATE order path only
 ```
 
+## Agent-to-agent protocol
+
+Agent communication is durable and explicit. Each round writes messages to the
+`agent_messages` table in the research SQLite database. Messages identify the
+sender, recipient, round, type, correlation identifier, timestamp, and JSON
+payload. The normal chain is:
+
+`nvidia → antigravity → deterministic_evaluator → antigravity → mlx_learner`
+
+NVIDIA proposals and roles are recorded before coordinator review. Antigravity's
+configured candidate is recorded before local evaluation. The evaluator then
+records candidate-versus-baseline evidence, the promotion decision, and the
+learning handoff. This ledger survives process restarts and makes each round
+auditable without treating model text as performance evidence.
+
 The evaluator records the selected interval and parameters. The paper bot
 reloads that artifact and the strategy module at a completed-bar boundary. A
 failed reload leaves the last known-good runtime active. The bot never trusts a

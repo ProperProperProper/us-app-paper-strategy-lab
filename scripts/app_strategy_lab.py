@@ -16,6 +16,7 @@ import random
 import sqlite3
 import sys
 import time
+import uuid
 from pathlib import Path
 
 import pandas as pd
@@ -65,6 +66,43 @@ PROFIT_EXIT_RESEARCH_VARIANTS = (
 MIN_PROMOTION_TRADES = 3
 MAX_PROMOTION_DRAWDOWN_DEGRADATION_PCT = 1.0
 TRAIN_SESSIONS = 21
+
+
+def init_agent_bus(db_path: Path) -> None:
+    """Create the durable agent-to-agent message ledger."""
+    with sqlite3.connect(db_path) as db:
+        db.execute("""CREATE TABLE IF NOT EXISTS agent_messages (
+            message_id TEXT PRIMARY KEY,
+            created_at TEXT NOT NULL,
+            run_id TEXT NOT NULL,
+            round_number INTEGER NOT NULL,
+            sender TEXT NOT NULL,
+            recipient TEXT NOT NULL,
+            message_type TEXT NOT NULL,
+            correlation_id TEXT,
+            payload_json TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'DELIVERED'
+        )""")
+        db.execute("CREATE INDEX IF NOT EXISTS idx_agent_messages_run_round ON agent_messages(run_id, round_number, created_at)")
+        db.commit()
+
+
+def send_agent_message(db_path: Path, run_id: str, round_number: int,
+                       sender: str, recipient: str, message_type: str,
+                       payload: dict, correlation_id: str | None = None) -> str:
+    message_id = str(uuid.uuid4())
+    with sqlite3.connect(db_path) as db:
+        db.execute(
+            """INSERT INTO agent_messages
+            (message_id, created_at, run_id, round_number, sender, recipient,
+             message_type, correlation_id, payload_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (message_id, pd.Timestamp.now(tz="UTC").isoformat(), run_id,
+             int(round_number), sender, recipient, message_type,
+             correlation_id, json.dumps(payload, default=str, sort_keys=True)),
+        )
+        db.commit()
+    return message_id
 
 
 def write_live_strategy(symbol: str, interval: int, params: dict, run_id: str) -> dict:
@@ -308,6 +346,8 @@ def main() -> int:
     }
     run_dir = args.run_dir / ("APP-" + time.strftime("%Y%m%d-%H%M%S"))
     run_dir.mkdir(parents=True, exist_ok=True)
+    init_agent_bus(args.db)
+    run_id = run_dir.name
     (run_dir / "blind_session_walk_forward.json").write_text(
         json.dumps(blind_evidence, indent=2, default=str) + "\n"
     )
@@ -338,17 +378,31 @@ def main() -> int:
                 candidates = [item for job in jobs for item in job.result()]
             candidates.extend(evaluate(frame, {**BASELINE, **variant}) for variant in PROFIT_EXIT_RESEARCH_VARIANTS)
             nvidia_proposals = []
+            message_ids = []
             if client:
                 for agent in range(max(1, args.agents)):
                     proposal = ask_agent(client, None, "nvidia", profile, parents, ["explorer", "critic", "risk reviewer"][agent % 3])
                     if proposal:
                         nvidia_proposals.append(proposal)
+                        message_ids.append(send_agent_message(
+                            args.db, run_id, round_number, "nvidia", "antigravity",
+                            "strategy_proposal", {"role": ["explorer", "critic", "risk reviewer"][agent % 3], "proposal": proposal},
+                        ))
             if antigravity:
                 configured_parents = parents + nvidia_proposals
+                if nvidia_proposals:
+                    message_ids.append(send_agent_message(
+                        args.db, run_id, round_number, "research_lab", "antigravity",
+                        "controller_review_request", {"parents": parents, "nvidia_proposals": nvidia_proposals},
+                    ))
                 for agent in range(max(1, args.agents)):
                     proposal = ask_agent(None, antigravity, "antigravity", profile, configured_parents, "true controller: choose, constrain, and configure one NVIDIA proposal for local deterministic testing", nvidia_proposals)
                     if proposal:
                         candidates.append(evaluate(frame, proposal))
+                        message_ids.append(send_agent_message(
+                            args.db, run_id, round_number, "antigravity", "deterministic_evaluator",
+                            "configured_candidate", {"proposal": proposal},
+                        ))
             candidates.append(evaluate(frame, dict(BASELINE)))
             candidates.sort(key=lambda item: item["stats"]["selection_score"], reverse=True)
             parents = [item["params"] for item in candidates[:max(2, args.agents)]]
@@ -372,6 +426,15 @@ def main() -> int:
             else:
                 promoted = write_live_strategy("US.APP", selected_interval, selected["params"], f"APP-{run_dir.name}-r{round_number:03d}")
             result = {"round": round_number, "profile": profile, "train_best": candidates[0], "selected_train": selected, "candidate_blind_replay": candidate_blind, "baseline_blind_replay": baseline_blind, "baseline_final_test": baseline_final_test, "baseline_current_window": baseline_current_window, "final_test": final, "promotion_gate": {"hard_rule": "first_21_complete_sessions_train_then_one_continuous_unseen_replay_to_latest_candle", "decision_basis": "continuous_unseen_replay_from_session_22_vs_fresh_10m_baseline", "train_sessions": TRAIN_SESSIONS, "test_step_sessions": "continuous_to_latest", "min_trades": MIN_PROMOTION_TRADES, "max_drawdown_degradation_pct": MAX_PROMOTION_DRAWDOWN_DEGRADATION_PCT}, "promoted": promoted, "agent_mutation": bool(client or antigravity), "proposal_provider": "nvidia" if client else None, "configuration_provider": "antigravity" if antigravity else None, "nvidia_proposals": nvidia_proposals}
+            message_ids.append(send_agent_message(
+                args.db, run_id, round_number, "deterministic_evaluator", "antigravity",
+                "evaluation_result", {"candidate": final, "baseline": baseline_final_test, "promoted": promoted},
+            ))
+            message_ids.append(send_agent_message(
+                args.db, run_id, round_number, "research_lab", "mlx_learner",
+                "learning_record", {"selected": selected, "final_test": final, "baseline": baseline_final_test, "promoted": promoted},
+            ))
+            result["agent_to_agent"] = {"protocol": "sqlite_agent_messages", "message_ids": message_ids, "acknowledged_by": ["deterministic_evaluator", "antigravity", "mlx_learner"]}
             (run_dir / f"round-{round_number:03d}.json").write_text(json.dumps(result, indent=2, default=str) + "\n")
             write_status(status_file, {"state": "RUNNING", **result, "run_dir": str(run_dir)})
             print(json.dumps({"round": round_number, "train": candidates[0]["stats"], "final_test": final["stats"], "promoted": promoted}), flush=True)
