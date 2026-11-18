@@ -281,6 +281,8 @@ def ask_agent(client: MCPClient | None, antigravity: AntigravityOptimizer | None
             return parse_proposal(antigravity.ask(prompt)) if antigravity else None
         return parse_proposal(client.ask(prompt, provider=provider, max_tokens=120)) if client else None
     except Exception:
+        if provider == "antigravity":
+            raise
         return None
 
 
@@ -363,8 +365,10 @@ def main() -> int:
     if "antigravity" in providers:
         try:
             antigravity = AntigravityOptimizer(timeout_seconds=60)
-        except Exception:
-            pass
+        except Exception as exc:
+            raise RuntimeError(f"required Antigravity controller unavailable: {exc}") from exc
+    else:
+        raise RuntimeError("Antigravity is required as the strategy-lab controller; include antigravity in --providers")
     parents = [dict(BASELINE)]
     round_number = 0
     try:

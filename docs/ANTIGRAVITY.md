@@ -1,6 +1,8 @@
 # Google Antigravity integration
 
-Google Antigravity can be used locally as an optional proposal worker for the US.APP mutation runner. The separate gateway/MCP integration is an external workspace dependency.
+Google Antigravity is the required coordinator and controller for the US.APP
+mutation runner. The separate gateway/MCP integration is an external workspace
+dependency.
 
 ## What is connected
 
@@ -8,7 +10,7 @@ Google Antigravity can be used locally as an optional proposal worker for the US
 - `gateway_chat` — sends bounded requests through the gateway’s existing provider allowlist.
 - `gateway_router_sample` — creates a reviewable routing example without changing data or strategy state.
 
-The strategy lab runs Antigravity as a proposal-only optimizer worker
+The strategy lab runs Antigravity as the mandatory controller and proposal worker
 (`--providers local,nvidia,antigravity`, one worker by default). It receives
 the measured profile and current parents, returns one bounded parameter
 mutation, and never supplies returns, trades, or validation. The local
@@ -22,4 +24,8 @@ The optional gateway/MCP configuration is managed outside this repository. When 
 
 ## Safety boundary
 
-Antigravity is a development/research proposal assistant only. It must not place orders, alter the evaluator, introduce future data, or supply performance metrics. Its proposals are constrained and then evaluated locally.
+Antigravity is a development/research controller only. It must not place
+orders, alter the evaluator, introduce future data, or supply performance
+metrics. Its configurations are constrained and then evaluated locally. If it
+cannot authenticate or respond, the lab stops rather than silently bypassing
+the controller.

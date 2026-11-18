@@ -8,7 +8,7 @@ The gateway and MCP server are external dependencies. Their setup, credentials, 
 
 - The local gateway provider supplies local-model proposals when configured.
 - NVIDIA workers provide bounded specialist proposals through the gateway.
-- Antigravity is an optional direct proposal worker invoked through its local CLI.
+- Antigravity is the required coordinator/controller invoked through its local CLI.
 - The local evaluator performs all scoring and safety checks.
 - Code-authority integrations are separate from proposal workers and must not bypass validation.
 
@@ -20,4 +20,7 @@ Workers may suggest parameter changes, indicator specifications, whitelisted for
 
 ## Failure handling
 
-Provider failures, malformed outputs, and timeouts are tolerated by continuing with locally generated candidates or the baseline. This repository does not provide a supervisor or automatic restart loop.
+Provider failures, malformed outputs, and timeouts from optional proposal
+providers may be recorded and bypassed. Antigravity failures are fatal to the
+lab round because it is the required coordinator/controller; the lab must be
+restarted only after Antigravity authentication or availability is restored.
