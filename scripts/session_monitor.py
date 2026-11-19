@@ -67,7 +67,7 @@ def processes(pattern: str) -> list[tuple[int, str]]:
         # actual Python service processes are eligible for supervision.
         if command.startswith(("/bin/zsh -c", "/bin/bash -c", "sh -c")) or " grep " in f" {command} ":
             continue
-        if "python" in command:
+        if "python" in command.lower():
             rows.append((int(fields[0]), command))
     return rows
 
