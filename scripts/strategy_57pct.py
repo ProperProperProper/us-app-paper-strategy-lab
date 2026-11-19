@@ -351,14 +351,14 @@ def run(candles: pd.DataFrame, params: dict = BASELINE, capital: float = 100000.
                 cash -= qty * entry + entry_fee
                 position = {"signal_time": stamp, "entry_time": stamp, "entry": entry, "qty": qty, "entry_fee": entry_fee, "peak_price": entry, "break_even_armed": False, "profit_lock_armed": False, "entry_index": row_index}
     if position and rows:
-        stamp, bar = rows[-1]; exit_price = float(bar.close) * (1 - slip); gross = (exit_price - position["entry"]) * position["qty"]
+        bar = rows[-1]; stamp = bar.Index; exit_price = float(bar.close) * (1 - slip); gross = (exit_price - position["entry"]) * position["qty"]
         exit_fee = fee_model(position["qty"] * exit_price) if fee_model else commission
         costs = position["entry_fee"] + exit_fee; net = gross - costs; cash += position["qty"] * exit_price - exit_fee
         trades.append(Trade(position["signal_time"].isoformat(), position["entry_time"].isoformat(), position["entry"], position["qty"], stamp.isoformat(), exit_price, gross, costs, net, net / (position["entry"] * position["qty"]) * 100, "MARK_TO_MARKET"))
         position = None
     equity = pd.DataFrame(equity_rows).set_index("date") if equity_rows else pd.DataFrame(columns=["equity"])
-    if position is None and rows and (equity.empty or equity.index[-1] != rows[-1][0]):
-        equity.loc[rows[-1][0], "equity"] = cash
+    if position is None and rows and (equity.empty or equity.index[-1] != rows[-1].Index):
+        equity.loc[rows[-1].Index, "equity"] = cash
     if not equity.empty: equity["drawdown"] = equity.equity / equity.equity.cummax() - 1
     _validate_trades(trades)
     return x, trades, {"equity": equity, "ending_cash": cash}
