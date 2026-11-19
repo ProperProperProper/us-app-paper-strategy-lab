@@ -38,7 +38,10 @@ def running_pid():
         output = subprocess.check_output(["ps", "-axo", "pid=,command="], text=True)
         for line in output.splitlines():
             fields = line.strip().split(None, 1)
-            if len(fields) == 2 and "scripts/app_strategy_lab.py" in fields[1]:
+            if (len(fields) == 2 and "scripts/app_strategy_lab.py" in fields[1]
+                    and "python" in fields[1]
+                    and not fields[1].startswith(("/bin/zsh -c", "/bin/bash -c", "sh -c"))
+                    and " grep " not in f" {fields[1]} "):
                 pid = int(fields[0])
                 if pid != os.getpid():
                     return pid
@@ -81,7 +84,9 @@ def paper_status():
     try:
         output = subprocess.check_output(["ps", "-axo", "pid=,command="], text=True)
         for line in output.splitlines():
-            if "scripts/competition_bot.py" in line and "grep" not in line:
+            if ("scripts/competition_bot.py" in line and "python" in line
+                    and not line.strip().startswith(("/bin/zsh -c", "/bin/bash -c", "sh -c"))
+                    and " grep " not in f" {line} "):
                 parts = line.strip().split(None, 1)
                 if parts:
                     processes.append({"pid": int(parts[0]), "command": parts[1] if len(parts) > 1 else ""})

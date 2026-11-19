@@ -60,8 +60,15 @@ def processes(pattern: str) -> list[tuple[int, str]]:
     rows = []
     for line in output.splitlines():
         fields = line.strip().split(None, 1)
-        if fields and pattern in (fields[1] if len(fields) > 1 else ""):
-            rows.append((int(fields[0]), fields[1]))
+        command = fields[1] if len(fields) > 1 else ""
+        if not fields or pattern not in command:
+            continue
+        # Ignore shell/grep commands that contain the pattern as text. Only
+        # actual Python service processes are eligible for supervision.
+        if command.startswith(("/bin/zsh -c", "/bin/bash -c", "sh -c")) or " grep " in f" {command} ":
+            continue
+        if "python" in command:
+            rows.append((int(fields[0]), command))
     return rows
 
 
