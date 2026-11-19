@@ -43,8 +43,14 @@ Or run the mutation worker directly:
 python3 scripts/app_strategy_lab.py \
   --db quant_dashboard.sqlite3 \
   --agents 2 --candidates 100 \
-  --providers local,nvidia,antigravity --continuous
+  --providers local,nvidia,apple,antigravity --continuous
 ```
+
+Apple private-cloud proposals are optional and bounded. The Apple bridge
+receives only the research prompt; it has no tool, file, shell, account, order,
+or promotion access. The gateway may refuse restricted trading-action language;
+that is recorded as a provider failure and remains safe. Apple output is parsed
+into the safe mutation vocabulary and then tested by the local evaluator.
 
 Antigravity is required as the mutation coordinator/controller. Set `ANTIGRAVITY_BIN` and `ANTIGRAVITY_MODEL` if its executable or model differs from the local defaults. If Antigravity cannot authenticate or respond, the mutation lab stops rather than bypassing the controller. The deterministic evaluator remains authoritative for all metrics and promotion decisions.
 

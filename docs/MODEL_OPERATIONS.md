@@ -8,6 +8,9 @@ The gateway and MCP server are external dependencies. Their setup, credentials, 
 
 - The local gateway provider supplies local-model proposals when configured.
 - NVIDIA workers provide bounded specialist proposals through the gateway.
+- Apple private-cloud workers provide bounded research proposals through the
+  same gateway; they have no tools, code authority, order access, or promotion
+  authority.
 - Antigravity is the required coordinator/controller invoked through its local CLI.
 - The local evaluator performs all scoring and safety checks.
 - Code-authority integrations are separate from proposal workers and must not bypass validation.
@@ -16,7 +19,7 @@ The lab does not call NVIDIA directly from strategy code. The local gateway hand
 
 ## Supported proposal surface
 
-Workers may suggest parameter changes, indicator specifications, whitelisted formula trees, or structured strategy variants. They may not submit live orders or execute arbitrary generated code.
+Workers may suggest parameter changes, indicator specifications, whitelisted formula trees, or structured strategy variants. They may not submit live orders or execute arbitrary generated code. Apple requests containing restricted trading-action language are blocked by the gateway before reaching the provider.
 
 ## Failure handling
 

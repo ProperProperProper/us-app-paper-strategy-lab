@@ -4,7 +4,7 @@
 
 ```sh
 python3 scripts/app_strategy_lab.py --db quant_dashboard.sqlite3 \
-  --agents 2 --candidates 100 --providers local,nvidia,antigravity
+  --agents 2 --candidates 100 --providers local,nvidia,apple,antigravity
 ```
 
 The loop loads all available candles (or an explicitly requested timestamp window) and generates bounded proposals. It selects using the first 21 complete sessions, then evaluates continuously from session 22 through the latest candle and writes run summaries plus the promoted parameter file locally. The SQLite agent ledger persists proposals, controller configuration, evaluation evidence, promotion decisions, and MLX learning records; it is an evidence ledger, not automatic adapter training.

@@ -23,7 +23,7 @@ python3 scripts/app_strategy_lab.py \
   --start '2026-01-02 09:40:00' \
   --end '2026-11-16 16:00:00' \
   --agents 2 --candidates 100 \
-  --providers local,nvidia,antigravity
+  --providers local,nvidia,apple,antigravity
 ```
 
 The timestamps above are examples from one local cache. Use the timestamps recorded in the run profile for the actual shared dataset. Do not silently convert them between timezones.

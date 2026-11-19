@@ -340,7 +340,7 @@ def main() -> int:
     ap.add_argument("--candidates", type=int, default=100)
     ap.add_argument("--start", help="inclusive candle timestamp, preferably ISO 8601 without timezone")
     ap.add_argument("--end", help="inclusive candle timestamp, preferably ISO 8601 without timezone")
-    ap.add_argument("--providers", default="antigravity")
+    ap.add_argument("--providers", default="local,nvidia,apple,antigravity")
     ap.add_argument("--continuous", action="store_true")
     args = ap.parse_args()
     signal.signal(signal.SIGINT, stop_worker_pool)
@@ -384,7 +384,7 @@ def main() -> int:
     status_file = args.run_dir / "app_runtime_status.json"
     client = None
     antigravity = None
-    if any(provider in {"local", "nvidia"} for provider in providers):
+    if any(provider in {"local", "nvidia", "apple"} for provider in providers):
         try:
             client = MCPClient(mcp_server_path(), os.environ.get("MULTI_MODEL_GATEWAY_URL", "http://127.0.0.1:8788"))
         except Exception:
