@@ -352,45 +352,58 @@ def optimize(candles, base=BASELINE, capital=100000.0, allocation=ALLOCATION, sl
     return sorted(rows, key=lambda r: r["stats"]["selection_score"], reverse=True)[:25]
 
 
-def walk_forward_optimize(candles, base=BASELINE, capital=100000.0, allocation=ALLOCATION, slippage_bps=2.0, commission=0.0, progress=None, trials=12000, seed=20261112, folds=3, fee_model=None):
-    """Select parameters on each past window and score only the next unseen window."""
-    frame = candles.sort_index(); n = len(frame); per_fold = max(1, int(trials) // folds); results = []
-    for fold in range(folds):
-        train_end = int(n * (0.50 + fold * (0.50 / folds)))
-        test_end = int(n * (0.50 + (fold + 1) * (0.50 / folds)))
-        if test_end > n: continue
-        train = frame.iloc[:train_end]
-        local_progress = (lambda done, total, msg, f=fold: progress(f * per_fold + done, trials, f"Walk-forward fold {f + 1}/{folds} · {msg}") if progress else None)
-        candidates = optimize(train, base, capital, allocation, slippage_bps, commission, local_progress, per_fold, seed + fold, fee_model=fee_model)
-        if not candidates: continue
-        p = candidates[0]["params"]; test_start = frame.index[train_end]
-        _, trades, data = run(frame.iloc[:test_end], p, capital, allocation, slippage_bps, commission, evaluation_start=test_start, fee_model=fee_model)
-        result = _stats(trades, data["equity"], capital); result.update({"fold": fold + 1, "test_start": str(test_start), "test_end": str(frame.index[test_end - 1])})
-        results.append({"params": p, "stats": result})
-    if progress: progress(trials, trials, f"Walk-forward complete · {len(results)} unseen folds")
-    return results
+def walk_forward_optimize(candles, base=BASELINE, capital=100000.0, allocation=ALLOCATION,
+                          slippage_bps=2.0, commission=0.0, progress=None,
+                          trials=12000, seed=20261112, folds=None, fee_model=None):
+    """Compatibility name for one 21-session train/continuous-test evaluation.
+
+    The old implementation used multiple rolling folds.  Keep this public
+    name for local callers, but make it obey the project's single hard
+    evaluation protocol everywhere.
+    """
+    frame = candles.sort_index()
+    rng = random.Random(seed)
+    proposals = [dict(base)]
+    for _ in range(min(int(trials), 240)):
+        proposal = {**base,
+            "lookback": rng.randint(5, 120), "fast": rng.randint(2, 30),
+            "slow": rng.randint(10, 200), "tp": round(rng.uniform(.02, .50), 4),
+            "stop": round(rng.uniform(.01, .25), 4)}
+        if proposal["fast"] < proposal["slow"]:
+            proposals.append(proposal)
+    results = []
+    for index, proposal in enumerate(proposals, 1):
+        replay = blind_session_walk_forward(
+            frame, [proposal], capital, allocation, slippage_bps, commission,
+            min_train_sessions=21, fee_model=fee_model,
+        )
+        if replay.get("status") != "OK":
+            continue
+        stats_result = dict(replay["aggregate"])
+        stats_result["test_start"] = replay["test_start"]
+        stats_result["test_end"] = replay["test_end"]
+        stats_result["selection_score"] = round(
+            stats_result["total_return_pct"] - .35 * abs(stats_result["max_drawdown_pct"]), 3
+        )
+        results.append({"params": proposal, "stats": stats_result})
+        if progress and (index % 25 == 0 or index == len(proposals)):
+            progress(index, len(proposals), f"Continuous blind replay candidate {index}/{len(proposals)}")
+    return sorted(results, key=lambda row: row["stats"]["selection_score"], reverse=True)[:25]
 
 
 def walk_forward_replay(candles, fold_results, capital=100000.0, allocation=ALLOCATION,
                         slippage_bps=2.0, commission=0.0, fee_model=None):
-    """Replay only the already-selected unseen folds, in chronological order."""
-    frame = candles.sort_index(); all_trades = []; equity_parts = []; fold_capital = float(capital)
-    for row in fold_results:
-        p = row["params"]
-        start = pd.Timestamp(row["stats"]["test_start"])
-        end = pd.Timestamp(row["stats"]["test_end"])
-        test_frame = frame.loc[:end]
-        x, trades, data = run(test_frame, p, fold_capital, allocation, slippage_bps, commission, evaluation_start=start, fee_model=fee_model)
-        all_trades.extend(trades)
-        if not data["equity"].empty:
-            equity_parts.append(data["equity"])
-        fold_returns = np.array([t.net_pnl / (t.entry_price * t.qty) for t in trades])
-        if len(fold_returns): fold_capital *= float(np.prod(1 + fold_returns))
-    equity = pd.concat(equity_parts).sort_index() if equity_parts else pd.DataFrame(columns=["equity", "drawdown"])
-    if not equity.empty:
-        equity = equity[~equity.index.duplicated(keep="last")]
-        equity["drawdown"] = equity.equity / equity.equity.cummax() - 1
-    return add_features(frame, BASELINE), all_trades, {"equity": equity, "ending_cash": fold_capital}
+    """Replay the selected candidate once from session 22 to the latest bar."""
+    frame = candles.sort_index()
+    if not fold_results:
+        return run(frame, BASELINE, capital, allocation, slippage_bps, commission,
+                   evaluation_start=None, fee_model=fee_model)
+    params = fold_results[0]["params"]
+    sessions = list(frame.index.normalize().drop_duplicates())
+    if len(sessions) <= 21:
+        return run(frame, params, capital, allocation, slippage_bps, commission, fee_model=fee_model)
+    return run(frame, params, capital, allocation, slippage_bps, commission,
+               evaluation_start=sessions[21], fee_model=fee_model)
 
 
 def blind_session_walk_forward(candles, candidates, capital=100_000.0,

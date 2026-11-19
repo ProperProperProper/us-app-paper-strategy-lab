@@ -136,11 +136,14 @@ def causal_triple_barrier_labels(frame: pd.DataFrame, horizon: int, upper: float
     return labels
 
 
-def purged_walk_forward_slices(n: int, train: float = .6, validation: float = .2, embargo: int = 1):
-    """Chronological splits with an embargo between train and validation."""
-    train_end = int(n * train); validation_start = min(n, train_end + embargo)
-    validation_end = min(n, int(n * (train + validation)))
-    return slice(0, train_end), slice(validation_start, validation_end), slice(validation_end, n)
+def continuous_replay_boundary(frame: pd.DataFrame, training_sessions: int = 21) -> pd.Timestamp:
+    """Return the single blind-replay boundary used by every evaluator."""
+    if not isinstance(frame.index, pd.DatetimeIndex):
+        raise ValueError("frame must have a DatetimeIndex")
+    sessions = list(frame.index.normalize().drop_duplicates())
+    if len(sessions) <= int(training_sessions):
+        raise ValueError("not enough complete sessions for continuous replay")
+    return pd.Timestamp(sessions[int(training_sessions)])
 
 
 def advanced_seed_params() -> list[dict[str, Any]]:

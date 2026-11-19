@@ -11,7 +11,7 @@ from typing import Any
 import pandas as pd
 
 from quant_storage import load_candles, save_execution_event
-from strategy_57pct import BASELINE, strategy_signal, walk_forward_optimize, walk_forward_replay, stats
+from strategy_57pct import BASELINE, strategy_signal, blind_session_walk_forward, stats
 
 
 class StrategyAPI:
@@ -24,15 +24,11 @@ class StrategyAPI:
     def walk_forward(self, candles: pd.DataFrame, capital: float, allocation: float,
                      slippage_bps: float, commission: float, trials: int = 12000,
                      progress=None) -> dict[str, Any]:
-        folds = walk_forward_optimize(
-            candles, BASELINE, capital, allocation, slippage_bps, commission,
-            progress=progress, trials=trials,
+        result = blind_session_walk_forward(
+            candles, [dict(BASELINE)], capital, allocation, slippage_bps,
+            commission, min_train_sessions=21,
         )
-        _, trades, data = walk_forward_replay(
-            candles, folds, capital, allocation, slippage_bps, commission,
-        )
-        return {"stats": stats(trades, data, capital), "folds": folds,
-                "trades": trades, "data": data}
+        return {"stats": result.get("aggregate", {}), "replay": result}
 
 
 @dataclass(frozen=True)

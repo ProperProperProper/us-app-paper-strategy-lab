@@ -182,8 +182,8 @@ def do_backtest(payload: dict[str, Any], progress=None) -> dict[str, Any]:
         raise ValueError("No cached Moomoo candles found after the fetch")
     frame.attrs["symbol"] = symbol
     frame.attrs["interval_minutes"] = interval
-    # Every displayed result is stitched from unseen walk-forward folds. There
-    # is no full-period in-sample fallback, even if the checkbox is unticked.
+    # Every displayed result uses the same hard protocol as the mutation lab:
+    # first 21 complete sessions for selection, then one continuous replay.
     optimisation = optimize(frame, base, capital, allocation, slip, commission, progress) if payload.get("optimize", True) else []
     x, trades, data = walk_forward_replay(frame, optimisation, capital, allocation, slip, commission)
     result = strategy_stats(trades, data, capital)
@@ -198,7 +198,7 @@ def do_backtest(payload: dict[str, Any], progress=None) -> dict[str, Any]:
         "trades": [asdict(t) for t in trades],
         "charts": images,
         "optimization": optimisation,
-        "note": "Strict walk-forward only: each parameter set was selected on earlier Moomoo candles and evaluated only on the following unseen fold. Completed-bar signals, close-based fills with slippage, one long position." + (" No valid optimisation candidates met the minimum trade threshold." if not optimisation else ""),
+        "note": "Strict 21-session continuous blind replay: candidates are selected from the first 21 complete sessions and evaluated from session 22 through the latest candle without reselection or chunks. Completed-bar signals, close-based fills with slippage, one long position." + (" No valid optimisation candidates met the minimum trade threshold." if not optimisation else ""),
     }
     global last_backtest
     last_backtest = response

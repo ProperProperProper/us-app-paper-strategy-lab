@@ -35,11 +35,13 @@ def running_pid():
     if process is not None and process.poll() is None:
         return process.pid
     try:
-        output = subprocess.check_output(["pgrep", "-f", "app_strategy_lab\\.py"], text=True)
+        output = subprocess.check_output(["ps", "-axo", "pid=,command="], text=True)
         for line in output.splitlines():
-            pid = int(line.strip())
-            if pid != os.getpid():
-                return pid
+            fields = line.strip().split(None, 1)
+            if len(fields) == 2 and "scripts/app_strategy_lab.py" in fields[1]:
+                pid = int(fields[0])
+                if pid != os.getpid():
+                    return pid
     except (OSError, ValueError, subprocess.CalledProcessError):
         pass
     return None
