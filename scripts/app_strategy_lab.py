@@ -201,6 +201,17 @@ def mutate(rng: random.Random, parent: dict | None = None) -> dict:
     return params
 
 
+def mutation_batch(frame: pd.DataFrame, parents: list[dict], seed: int, candidates: int) -> list[dict]:
+    """Evaluate one agent's deterministic mutations in a separate process.
+
+    The evaluator is CPU-bound Python. A process boundary is intentional here:
+    threads cannot use multiple cores for this work because of the GIL.
+    Provider calls and promotion remain in the coordinator process.
+    """
+    rng = random.Random(seed)
+    return [evaluate(frame, mutate(rng, random.choice(parents))) for _ in range(int(candidates))]
+
+
 def parse_proposal(text: str) -> dict | None:
     decoder = json.JSONDecoder()
     for index, char in enumerate(text or ""):
@@ -374,8 +385,8 @@ def main() -> int:
                 break
             round_number += 1
             write_status(status_file, {"state": "RUNNING", "symbol": "US.APP", "interval": "10m", "round": round_number, "run_dir": str(run_dir), "profile": profile})
-            with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, args.agents)) as pool:
-                jobs = [pool.submit(lambda seed: [evaluate(frame, mutate(random.Random(seed), random.choice(parents))) for _ in range(args.candidates)], 900000 + round_number * 100 + i) for i in range(args.agents)]
+            with concurrent.futures.ProcessPoolExecutor(max_workers=max(1, min(5, args.agents))) as pool:
+                jobs = [pool.submit(mutation_batch, frame, parents, 900000 + round_number * 100 + i, args.candidates) for i in range(max(1, min(5, args.agents)))]
                 candidates = [item for job in jobs for item in job.result()]
             candidates.extend(evaluate(frame, {**BASELINE, **variant}) for variant in PROFIT_EXIT_RESEARCH_VARIANTS)
             nvidia_proposals = []

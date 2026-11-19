@@ -28,3 +28,8 @@ The default supervisor allocation is five lab agents on this ten-core Apple
 Silicon machine, leaving approximately half the CPU available for the paper
 bot, model providers, and other applications. Each round remains bounded to
 one candidate per agent.
+
+Deterministic mutation candidates run in separate Python worker processes, not
+threads, so CPU-bound evaluation is not serialized by Python's GIL. Provider
+calls and promotion remain in the coordinator process; the worker count is
+capped at five.
