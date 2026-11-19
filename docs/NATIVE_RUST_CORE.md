@@ -11,7 +11,8 @@ The deterministic candle hot path now has a native Rust implementation:
 - causal strategy indicators: fast/slow/regime EMA, prior breakout high,
   ATR(14), EMA drifts, log-price regression slope, and prior recent peak; and
 - the timeframe-independent ATR/peak profit-capture exit equation; and
-- zero-copy array exchange across the Python/Rust boundary during each call.
+- typed NumPy/ctypes array exchange across the Python/Rust boundary during each
+  call.
 
 Build it on Apple Silicon with:
 
@@ -26,8 +27,9 @@ a portability fallback. The strategy equations, blind replay, agent loop,
 SQLite orchestration, Moomoo access, and SIMULATE-only paper execution remain
 Python. Rust output must match the Python fallback before it is relied upon for
 research comparisons. Parity is checked against the Python implementation on
-the locally cached US.APP candles before promotion; the current verified parity
-set contains 8,625 candles and all nine native indicator columns.
+the locally cached US.APP candles before promotion; the checked row count is
+reported by the local verification command and may change as the candle cache
+is updated.
 
 The default supervisor allocation is five lab agents on this ten-core Apple
 Silicon machine, leaving approximately half the CPU available for the paper

@@ -10,11 +10,13 @@ dependency.
 - `gateway_chat` — sends bounded requests through the gateway’s existing provider allowlist.
 - `gateway_router_sample` — creates a reviewable routing example without changing data or strategy state.
 
-The strategy lab runs Antigravity as the mandatory controller and proposal worker
-(`--providers local,nvidia,antigravity`, one worker by default). It receives
-the measured profile and current parents, returns one bounded parameter
-mutation, and never supplies returns, trades, or validation. The local
-deterministic evaluator remains the only source of metrics and eligibility.
+The strategy lab runs Antigravity as the mandatory controller and proposal
+worker (`--providers local,nvidia,antigravity`). The direct CLI defaults to two
+agent calls; the browser console starts five bounded calls unless configured
+otherwise. Each call receives the measured profile and current parents, returns
+one bounded parameter or strategy-variant proposal, and never supplies
+returns, trades, or validation. The local deterministic evaluator remains the
+only source of metrics and eligibility.
 
 The deterministic evaluator remains the authority for research results. Antigravity does not write strategy code, write the database, or submit paper orders.
 
