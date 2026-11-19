@@ -13,6 +13,7 @@ import importlib.util
 import json
 import os
 import random
+import signal
 import sqlite3
 import sys
 import time
@@ -66,6 +67,16 @@ PROFIT_EXIT_RESEARCH_VARIANTS = (
 MIN_PROMOTION_TRADES = 3
 MAX_PROMOTION_DRAWDOWN_DEGRADATION_PCT = 1.0
 TRAIN_SESSIONS = 21
+ACTIVE_POOL: concurrent.futures.ProcessPoolExecutor | None = None
+
+
+def stop_worker_pool(signum, _frame) -> None:
+    """Cancel mutation workers before the coordinator exits."""
+    global ACTIVE_POOL
+    if ACTIVE_POOL is not None:
+        ACTIVE_POOL.shutdown(wait=False, cancel_futures=True)
+        ACTIVE_POOL = None
+    raise KeyboardInterrupt(f"signal {signum}")
 
 
 def init_agent_bus(db_path: Path) -> None:
@@ -326,6 +337,8 @@ def main() -> int:
     ap.add_argument("--providers", default="antigravity")
     ap.add_argument("--continuous", action="store_true")
     args = ap.parse_args()
+    signal.signal(signal.SIGINT, stop_worker_pool)
+    signal.signal(signal.SIGTERM, stop_worker_pool)
     providers = [x.strip() for x in args.providers.split(",") if x.strip()]
     frame = load_frame(args.db, args.start, args.end)
     persist_interval_frames(args.db, frame)
@@ -385,9 +398,15 @@ def main() -> int:
                 break
             round_number += 1
             write_status(status_file, {"state": "RUNNING", "symbol": "US.APP", "interval": "10m", "round": round_number, "run_dir": str(run_dir), "profile": profile})
-            with concurrent.futures.ProcessPoolExecutor(max_workers=max(1, min(5, args.agents))) as pool:
+            global ACTIVE_POOL
+            pool = concurrent.futures.ProcessPoolExecutor(max_workers=max(1, min(5, args.agents)))
+            ACTIVE_POOL = pool
+            try:
                 jobs = [pool.submit(mutation_batch, frame, parents, 900000 + round_number * 100 + i, args.candidates) for i in range(max(1, min(5, args.agents)))]
                 candidates = [item for job in jobs for item in job.result()]
+            finally:
+                pool.shutdown(wait=True, cancel_futures=True)
+                ACTIVE_POOL = None
             candidates.extend(evaluate(frame, {**BASELINE, **variant}) for variant in PROFIT_EXIT_RESEARCH_VARIANTS)
             nvidia_proposals = []
             message_ids = []

@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import json
 import os
+import select
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 
@@ -18,6 +20,7 @@ class MCPClient:
         )
         self.request_id = 0
         self.last_meta: dict = {}
+        self.response_timeout_seconds = max(5.0, float(os.environ.get("MCP_RESPONSE_TIMEOUT_SECONDS", "45")))
         self.call("initialize", {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "us-app-strategy-lab", "version": "1.0"}})
         self.notify("notifications/initialized", {})
 
@@ -29,7 +32,11 @@ class MCPClient:
         self.request_id += 1
         self.proc.stdin.write(json.dumps({"jsonrpc": "2.0", "id": self.request_id, "method": method, "params": params}) + "\n")
         self.proc.stdin.flush()
+        deadline = time.monotonic() + self.response_timeout_seconds
         while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0 or not select.select([self.proc.stdout], [], [], remaining)[0]:
+                raise TimeoutError(f"MCP response timeout after {self.response_timeout_seconds:.1f}s: {method}")
             row = self.proc.stdout.readline()
             if not row:
                 raise RuntimeError("MCP server exited")

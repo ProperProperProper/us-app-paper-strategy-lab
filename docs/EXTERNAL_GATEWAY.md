@@ -48,6 +48,12 @@ python3 scripts/app_strategy_lab.py \
 
 Antigravity is required as the mutation coordinator/controller. Set `ANTIGRAVITY_BIN` and `ANTIGRAVITY_MODEL` if its executable or model differs from the local defaults. If Antigravity cannot authenticate or respond, the mutation lab stops rather than bypassing the controller. The deterministic evaluator remains authoritative for all metrics and promotion decisions.
 
+The Python MCP client bounds each gateway response to 45 seconds by default
+(`MCP_RESPONSE_TIMEOUT_SECONDS` can override this). A local or NVIDIA provider
+timeout is recorded as a proposal failure and does not freeze the deterministic
+lab or paper bot; the required Antigravity controller remains a separate
+failure boundary.
+
 ## What this repository does not provide
 
 - Gateway compilation or service installation.
