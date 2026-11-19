@@ -19,6 +19,7 @@ does not contain credentials or attempt to unlock a live account.
 from __future__ import annotations
 
 import argparse
+import importlib
 import importlib.util
 import json
 import logging
@@ -146,9 +147,46 @@ class CompetitionBot:
                     return None
         return None
 
+    def _load_plugin_runtime(self, payload: dict[str, Any], config_path: Path) -> bool:
+        descriptor = payload.get("plugin")
+        if not isinstance(descriptor, dict):
+            return False
+        entrypoint = str(descriptor.get("entrypoint", ""))
+        python_root = Path(str(descriptor.get("python_root", ""))).expanduser().resolve()
+        if ":" not in entrypoint or not python_root.exists():
+            raise ValueError("plugin runtime requires an existing python_root and module:class entrypoint")
+        module_name, class_name = entrypoint.split(":", 1)
+        if str(python_root) not in sys.path:
+            sys.path.insert(0, str(python_root))
+        module = importlib.import_module(module_name)
+        plugin_class = getattr(module, class_name)
+        constructor = descriptor.get("constructor", {})
+        plugin = plugin_class(**constructor) if isinstance(constructor, dict) else plugin_class()
+        required = ("baseline", "strategy_signal", "profit_capture_exit", "aggregate_candles")
+        if not all(hasattr(plugin, name) for name in required):
+            raise TypeError(f"plugin {entrypoint} does not expose the paper strategy contract")
+        self.strategy_module = plugin
+        self.strategy_mtime = config_path.stat().st_mtime_ns
+        self.strategy_baseline = dict(plugin.baseline)
+        self.strategy_signal = plugin.strategy_signal
+        self.strategy_profit_capture_exit = plugin.profit_capture_exit
+        self.strategy_aggregate_candles = plugin.aggregate_candles
+        self.strategy_params = self._load_strategy_params()
+        logging.info("hot-swapped strategy plugin name=%s version=%s params=%s", descriptor.get("name"), descriptor.get("version"), self.strategy_params)
+        return True
+
     def _refresh_strategy_code(self, force: bool = False) -> None:
         """Hot-reload strategy code/config; retain the last good runtime on error."""
         try:
+            config_path = next((path for path in STRATEGY_CONFIG_PATHS if path.exists()), None)
+            if config_path is not None:
+                payload = json.loads(config_path.read_text())
+                descriptor = payload.get("plugin")
+                if isinstance(descriptor, dict):
+                    signature = config_path.stat().st_mtime_ns
+                    if force or signature != self.strategy_mtime:
+                        self._load_plugin_runtime(payload, config_path)
+                    return
             mtime = STRATEGY_SOURCE.stat().st_mtime_ns
             if not force and mtime == self.strategy_mtime:
                 signature = self._current_strategy_config_signature()
