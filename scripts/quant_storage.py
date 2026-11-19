@@ -102,17 +102,19 @@ def save_candles(frame: pd.DataFrame, symbol: str, interval_minutes: int, source
     count = 0
     try:
         rows = []
-        for stamp, row in frame.iterrows():
-            normalized_stamp = pd.Timestamp(stamp)
+        columns = set(frame.columns)
+        for row in frame.itertuples(index=True, name="CandleRow"):
+            values = row._asdict()
+            normalized_stamp = pd.Timestamp(row.Index)
             if normalized_stamp.tzinfo is not None:
                 normalized_stamp = normalized_stamp.tz_localize(None)
             if normalized_stamp < pd.Timestamp(MIN_CANDLE_DATE):
                 continue
             rows.append((
                 symbol, interval_minutes, normalized_stamp.isoformat(),
-                float(row["open"]), float(row["high"]), float(row["low"]), float(row["close"]),
-                float(row["volume"]) if "volume" in row and pd.notna(row["volume"]) else None,
-                float(row["turnover"]) if "turnover" in row and pd.notna(row["turnover"]) else None,
+                float(values["open"]), float(values["high"]), float(values["low"]), float(values["close"]),
+                float(values["volume"]) if "volume" in columns and pd.notna(values["volume"]) else None,
+                float(values["turnover"]) if "turnover" in columns and pd.notna(values["turnover"]) else None,
                 source,
             ))
         db.executemany(

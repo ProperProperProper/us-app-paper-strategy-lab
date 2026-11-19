@@ -111,6 +111,7 @@ class CompetitionBot:
         self.strategy_aggregate_candles = aggregate_candles
         self.strategy_interval = 10
         self.strategy_params = dict(BASELINE)
+        self._last_persist_signature: dict[str, tuple[Any, ...]] = {}
         self._refresh_strategy_code(force=True)
         self.quote = OpenQuoteContext(host="127.0.0.1", port=11111)
         self.quote_subscribed: set[str] = set()
@@ -220,7 +221,8 @@ class CompetitionBot:
         if STATE_PATH.exists():
             state = json.loads(STATE_PATH.read_text())
         else:
-            state = {"last_bar": {}, "entries": {}}
+            state = {"last_bar": {}, "last_source_bar": {}, "entries": {}}
+        state.setdefault("last_source_bar", {})
         state.setdefault("pending", {})
         return state
 
@@ -399,10 +401,18 @@ class CompetitionBot:
         if live_ret == RET_OK and isinstance(live_data, pd.DataFrame) and not live_data.empty:
             live = self._clean_candles(live_data)
             data = self._clean_candles(pd.concat([data, live], ignore_index=True))
-            logging.info("merged live K-line recovery for %s latest=%s", symbol, data["time_key"].max())
+            logging.debug("merged live K-line recovery for %s latest=%s", symbol, data["time_key"].max())
         else:
             logging.warning("live K-line recovery unavailable for %s: %s", symbol, live_data)
-        save_candles(data.set_index("time_key"), symbol, 10)
+        latest_row = data.iloc[-1]
+        persist_signature = (
+            len(data), str(latest_row["time_key"]), float(latest_row["open"]),
+            float(latest_row["high"]), float(latest_row["low"]),
+            float(latest_row["close"]), float(latest_row["volume"]),
+        )
+        if self._last_persist_signature.get(symbol) != persist_signature:
+            save_candles(data.set_index("time_key"), symbol, 10)
+            self._last_persist_signature[symbol] = persist_signature
         latest = data["time_key"].max()
         stale, lag_minutes = self._stale_during_open(latest)
         if stale:
@@ -434,9 +444,27 @@ class CompetitionBot:
             try:
                 candles = self.candles(symbol)
                 self._refresh_strategy_code()
+                if candles.empty or "time_key" not in candles.columns:
+                    raise RuntimeError(f"no usable candles returned for {symbol}")
+                source_bar = str(candles["time_key"].iloc[-1])
+                # The strategy uses the last completed candle.  Avoid feature
+                # calculation and higher-timeframe aggregation on every poll
+                # while still checking pending paper fills every cycle.
+                if self.state["last_source_bar"].get(symbol) == source_bar:
+                    pending = self.state["pending"].get(symbol)
+                    if pending:
+                        qty, _ = self.position(symbol)
+                        filled = (pending == "BUY" and qty > 0) or (pending == "SELL" and qty <= 0)
+                        if filled:
+                            self.state["pending"].pop(symbol, None)
+                            self._save_state()
+                    logging.info("no new source candle symbol=%s bar=%s", symbol, source_bar)
+                    continue
                 strategy_candles = self.strategy_aggregate_candles(candles, self.strategy_interval)
                 signal_data = self.strategy_signal(strategy_candles, self.strategy_params)
                 if self.state["last_bar"].get(symbol) == signal_data["bar"]:
+                    self.state["last_source_bar"][symbol] = source_bar
+                    self._save_state()
                     continue
                 qty, avg = self.position(symbol)
                 price = self.market_price(symbol)
@@ -449,6 +477,7 @@ class CompetitionBot:
                         self.state["pending"].pop(symbol, None)
                     else:
                         self.state["last_bar"][symbol] = signal_data["bar"]
+                        self.state["last_source_bar"][symbol] = source_bar
                         self._save_state()
                         continue
 
@@ -464,6 +493,7 @@ class CompetitionBot:
                         self.break_even_armed = False
                         self.profit_lock_armed = False
                     self.state["last_bar"][symbol] = signal_data["bar"]
+                    self.state["last_source_bar"][symbol] = source_bar
                     self._save_state()
                     continue
 
@@ -483,6 +513,7 @@ class CompetitionBot:
                 # Mark the bar only after all queries and any order submission
                 # have completed. A failed cycle can therefore be retried.
                 self.state["last_bar"][symbol] = signal_data["bar"]
+                self.state["last_source_bar"][symbol] = source_bar
                 self._save_state()
             except Exception as exc:
                 self.last_error = repr(exc)

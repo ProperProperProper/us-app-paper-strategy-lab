@@ -191,12 +191,13 @@ def persist_interval_frames(db_path: Path, frame: pd.DataFrame) -> None:
         db.execute("DELETE FROM candles WHERE time_key < ?", ("2026-01-01T00:00:00",))
         for interval in RESEARCH_INTERVALS:
             derived = aggregate_candles(frame, interval)
+            derived_rows = derived.itertuples(index=True, name="DerivedCandle")
             db.executemany(
                 """INSERT OR REPLACE INTO candles
                 (symbol, interval_minutes, time_key, open, high, low, close, volume, source)
                 VALUES ('US.APP', ?, ?, ?, ?, ?, ?, ?, 'derived_research')""",
-                [(interval, pd.Timestamp(stamp).isoformat(), float(row.open), float(row.high),
-                  float(row.low), float(row.close), float(row.volume)) for stamp, row in derived.iterrows()],
+                [(interval, pd.Timestamp(row.Index).isoformat(), float(row.open), float(row.high),
+                  float(row.low), float(row.close), float(row.volume)) for row in derived_rows],
             )
         db.commit()
 
@@ -204,8 +205,16 @@ def persist_interval_frames(db_path: Path, frame: pd.DataFrame) -> None:
 def evaluate(frame: pd.DataFrame, params: dict) -> dict:
     effective = {**BASELINE, **params}
     interval_results = {}
+    # A candidate is evaluated against every supported interval.  Build each
+    # aggregate once per evaluation and reuse it for the replay; repeated
+    # candidates still get independent deterministic replays, but pandas does
+    # not redo the same resampling work for every candidate decision.
+    interval_frames = {
+        interval: aggregate_candles(frame, interval)
+        for interval in RESEARCH_INTERVALS
+    }
     for interval in RESEARCH_INTERVALS:
-        interval_frame = aggregate_candles(frame, interval)
+        interval_frame = interval_frames[interval]
         interval_results[str(interval)] = blind_session_walk_forward(
             interval_frame, [effective], min_train_sessions=TRAIN_SESSIONS
         )
@@ -217,7 +226,7 @@ def evaluate(frame: pd.DataFrame, params: dict) -> dict:
     _, selected_interval, replay = max(ranked_intervals, key=lambda row: row[0]) if ranked_intervals else (0.0, 10, {"aggregate": {}})
     # Every candidate gets a fresh 10m baseline replay on the identical
     # continuous train-then-test sequence.
-    baseline_replay = blind_session_walk_forward(frame, [dict(BASELINE)], min_train_sessions=TRAIN_SESSIONS)
+    baseline_replay = blind_session_walk_forward(interval_frames[10], [dict(BASELINE)], min_train_sessions=TRAIN_SESSIONS)
     result = dict(replay.get("aggregate", {"total_return_pct": 0.0, "max_drawdown_pct": 0.0, "trades": 0}))
     result["selection_score"] = round(float(result.get("total_return_pct", 0.0)) - 0.35 * abs(float(result.get("max_drawdown_pct", 0.0))), 4)
     result["selected_interval"] = selected_interval
