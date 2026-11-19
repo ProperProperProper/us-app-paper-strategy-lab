@@ -57,9 +57,9 @@ def _condition(x: pd.DataFrame, c: dict[str, Any]) -> pd.Series:
 def run_custom(frame: pd.DataFrame, spec: dict[str, Any], capital=200000.0, allocation=.95, slippage_bps=2.0):
     _validate_candles(frame); x=compile_features(frame,spec["features"])
     entry=_condition(x,spec["entry"]); exit_signal=_condition(x,spec["exit"])
-    rows=list(x.iterrows()); slip=slippage_bps/10000; cash=float(capital); position=None; trades=[]; equity=[]
-    for i,(stamp,bar) in enumerate(rows[:-1]):
-        next_stamp,next_bar=rows[i+1]
+    rows=list(x.itertuples(index=True, name="CustomBar")); slip=slippage_bps/10000; cash=float(capital); position=None; trades=[]; equity=[]
+    for i,bar in enumerate(rows[:-1]):
+        stamp=bar.Index; next_bar=rows[i+1]; next_stamp=next_bar.Index
         equity.append({"date":stamp,"equity":cash+(position["qty"]*float(bar.close) if position else 0)})
         if position:
             price=float(bar.close); stop=position["entry"]*(1-float(spec.get("stop",.05))); target=position["entry"]*(1+float(spec.get("take_profit",.20)))
@@ -74,10 +74,10 @@ def run_custom(frame: pd.DataFrame, spec: dict[str, Any], capital=200000.0, allo
             if qty>0 and qty*px+fee <= cash:
                 cash-=qty*px+fee; position={"entry":px,"qty":qty,"entry_time":next_stamp,"signal_time":stamp,"entry_fee":fee}
     if position:
-        stamp,bar=rows[-1]; out=float(bar.close)*(1-slip); fee=transaction_fee(position["qty"]*out); gross=(out-position["entry"])*position["qty"]; costs=position["entry_fee"]+fee; trades.append(Trade(position["signal_time"].isoformat(),position["entry_time"].isoformat(),position["entry"],position["qty"],stamp.isoformat(),out,gross,costs,gross-costs,(gross-costs)/(position["entry"]*position["qty"])*100,"MARK_TO_MARKET")); cash+=position["qty"]*out-fee
+        bar=rows[-1]; stamp=bar.Index; out=float(bar.close)*(1-slip); fee=transaction_fee(position["qty"]*out); gross=(out-position["entry"])*position["qty"]; costs=position["entry_fee"]+fee; trades.append(Trade(position["signal_time"].isoformat(),position["entry_time"].isoformat(),position["entry"],position["qty"],stamp.isoformat(),out,gross,costs,gross-costs,(gross-costs)/(position["entry"]*position["qty"])*100,"MARK_TO_MARKET")); cash+=position["qty"]*out-fee
     _validate_trades(trades)
     if rows:
-        last_stamp=rows[-1][0]
+        last_stamp=rows[-1].Index
         equity.append({"date":last_stamp,"equity":cash})
     eq=pd.DataFrame(equity).set_index("date") if equity else pd.DataFrame(columns=["equity"])
     return x,trades,{"equity":eq,"ending_cash":cash}

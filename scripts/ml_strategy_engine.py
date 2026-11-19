@@ -111,8 +111,9 @@ def run_ml(frame: pd.DataFrame, params: dict[str, Any], capital: float = 200_000
     target = float(params.get("take_profit", 0.16))
     slip = slippage_bps / 10000.0
     cash = float(capital); position = None; trades = []; equity_rows = []
-    rows = list(frame.iterrows())
-    for i, (stamp, bar) in enumerate(rows):
+    rows = list(frame.itertuples(index=True, name="MLBar"))
+    for i, bar in enumerate(rows):
+        stamp = bar.Index
         price = float(bar.close)
         equity_rows.append({"date": stamp, "equity": cash + (position["qty"] * price if position else 0.0)})
         if position:
@@ -132,7 +133,7 @@ def run_ml(frame: pd.DataFrame, params: dict[str, Any], capital: float = 200_000
                 cash -= qty * entry + fee
                 position = {"signal_time": stamp.isoformat(), "entry_time": stamp.isoformat(), "entry": entry, "qty": qty, "entry_fee": fee}
     if position and rows:
-        stamp, bar = rows[-1]; out = float(bar.close) * (1 - slip); fee = transaction_fee(position["qty"] * out)
+        bar = rows[-1]; stamp = bar.Index; out = float(bar.close) * (1 - slip); fee = transaction_fee(position["qty"] * out)
         gross = (out - position["entry"]) * position["qty"]; costs = position["entry_fee"] + fee
         trades.append(Trade(position["signal_time"], position["entry_time"], position["entry"], position["qty"], stamp.isoformat(), out, gross, costs, gross - costs, (gross - costs) / (position["entry"] * position["qty"]) * 100, "ML_MARK_TO_MARKET"))
         cash += position["qty"] * out - fee
