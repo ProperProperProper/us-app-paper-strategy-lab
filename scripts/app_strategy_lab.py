@@ -122,11 +122,19 @@ def send_agent_message(db_path: Path, run_id: str, round_number: int,
     return message_id
 
 
-def write_live_strategy(symbol: str, interval: int, params: dict, run_id: str) -> dict:
+def write_live_strategy(interval: int, params: dict,
+                        baseline_stats: dict, candidate_stats: dict) -> dict:
     path = ROOT / "paper_bot_live_strategy.json"
-    payload = {"symbol": symbol, "interval": int(interval), "params": dict(params),
-               "run_id": run_id, "updated_at": pd.Timestamp.now(tz="UTC").isoformat(),
-               "mode": "SIMULATE"}
+    payload = {
+        "interval": int(interval),
+        "params": dict(params),
+        "mode": "SIMULATE",
+        "promotion": {
+            "baseline": dict(baseline_stats),
+            "candidate": dict(candidate_stats),
+            "replay_protocol": "first_21_complete_sessions_then_one_continuous_unseen_replay",
+        },
+    }
     # Preserve the trusted structural plugin handoff when the sibling plugin
     # project is installed. This prevents an approved code strategy from being
     # silently downgraded to a parameter-only artifact on the next round.
@@ -491,7 +499,10 @@ def main() -> int:
             if promotion_reasons:
                 promoted = {"status": "REJECTED", "params": dict(BASELINE), "reasons": promotion_reasons, "decision_basis": "continuous_unseen_replay_from_session_22_vs_fresh_10m_baseline", "baseline_final_test": baseline_final_test["stats"], "baseline_current_window": baseline_current_window["stats"]}
             else:
-                promoted = write_live_strategy("US.APP", selected_interval, selected["params"], f"APP-{run_dir.name}-r{round_number:03d}")
+                promoted = write_live_strategy(
+                    selected_interval, selected["params"],
+                    baseline_final_test["stats"], final["stats"],
+                )
             result = {"round": round_number, "profile": profile, "train_best": candidates[0], "selected_train": selected, "candidate_blind_replay": candidate_blind, "baseline_blind_replay": baseline_blind, "baseline_final_test": baseline_final_test, "baseline_current_window": baseline_current_window, "final_test": final, "promotion_gate": {"hard_rule": "first_21_complete_sessions_train_then_one_continuous_unseen_replay_to_latest_candle", "decision_basis": "continuous_unseen_replay_from_session_22_vs_fresh_10m_baseline", "train_sessions": TRAIN_SESSIONS, "test_step_sessions": "continuous_to_latest", "min_trades": MIN_PROMOTION_TRADES, "max_drawdown_degradation_pct": MAX_PROMOTION_DRAWDOWN_DEGRADATION_PCT}, "promoted": promoted, "agent_mutation": bool(client or antigravity), "proposal_providers": [provider for provider in ("nvidia", "apple") if provider in providers], "configuration_provider": "antigravity" if antigravity else None, "nvidia_proposals": nvidia_proposals, "apple_proposals": apple_proposals}
             message_ids.append(send_agent_message(
                 args.db, run_id, round_number, "deterministic_evaluator", "antigravity",
