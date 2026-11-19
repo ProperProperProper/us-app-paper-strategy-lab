@@ -15,10 +15,12 @@ import pandas as pd
 try:
     from native_core import aggregate as native_aggregate
     from native_core import available as native_core_available
+    from native_core import features as native_features
     from native_core import validate as native_validate
 except ImportError:
     native_aggregate = None
     native_core_available = lambda: False
+    native_features = None
     native_validate = None
 
 
@@ -121,9 +123,19 @@ class Trade:
 def add_features(candles: pd.DataFrame, params: dict = BASELINE) -> pd.DataFrame:
     x = candles.copy().sort_index()
     close = x["close"].astype(float)
-    x["ema_fast"] = close.ewm(span=int(params["fast"]), adjust=False).mean()
-    x["ema_slow"] = close.ewm(span=int(params["slow"]), adjust=False).mean()
-    x["prior_high"] = x["high"].shift(1).rolling(int(params["lookback"])).max()
+    native_indicator_values = None
+    if native_core_available():
+        native_indicator_values = native_features(
+            x, int(params["fast"]), int(params["slow"]), int(params["lookback"]),
+            int(params.get("regime_ema", 89)), int(params.get("regime_window", 18)),
+            int(params.get("regime_lag", 12)),
+        )
+        for name in native_indicator_values.columns:
+            x[name] = native_indicator_values[name]
+    else:
+        x["ema_fast"] = close.ewm(span=int(params["fast"]), adjust=False).mean()
+        x["ema_slow"] = close.ewm(span=int(params["slow"]), adjust=False).mean()
+        x["prior_high"] = x["high"].shift(1).rolling(int(params["lookback"])).max()
     breakout = close > x["prior_high"]
     trend_up = (x["ema_fast"] > x["ema_slow"]) & (close > x["ema_slow"])
     previous_cross_up = (x["ema_fast"].shift(1) <= x["ema_slow"].shift(1)) & trend_up
@@ -141,7 +153,8 @@ def add_features(candles: pd.DataFrame, params: dict = BASELINE) -> pd.DataFrame
         (x["high"] - previous_close).abs(),
         (x["low"] - previous_close).abs(),
     ], axis=1).max(axis=1)
-    x["atr14"] = true_range.rolling(14, min_periods=1).mean()
+    if native_indicator_values is None:
+        x["atr14"] = true_range.rolling(14, min_periods=1).mean()
     volume_period = int(params.get("volume_median_period", 20))
     entry_filter = {
         "none": True,
@@ -165,13 +178,14 @@ def add_features(candles: pd.DataFrame, params: dict = BASELINE) -> pd.DataFrame
     slope_window = int(params.get("regime_window", 18))
     slope_lag = int(params.get("regime_lag", 12))
     log_close = np.log(close.clip(lower=1e-12))
-    x["slow_drift"] = x["ema_slow"].pct_change(slope_lag)
-    x["regime_ema"] = close.ewm(span=int(params.get("regime_ema", 89)), adjust=False).mean()
-    x["regime_drift"] = x["regime_ema"].pct_change(slope_lag)
-    x["log_slope"] = log_close.rolling(slope_window).apply(
-        lambda v: float(np.polyfit(np.arange(len(v)), v, 1)[0]), raw=True
-    )
-    x["recent_peak"] = close.shift(1).rolling(slope_window * 2).max()
+    if native_indicator_values is None:
+        x["slow_drift"] = x["ema_slow"].pct_change(slope_lag)
+        x["regime_ema"] = close.ewm(span=int(params.get("regime_ema", 89)), adjust=False).mean()
+        x["regime_drift"] = x["regime_ema"].pct_change(slope_lag)
+        x["log_slope"] = log_close.rolling(slope_window).apply(
+            lambda v: float(np.polyfit(np.arange(len(v)), v, 1)[0]), raw=True
+        )
+        x["recent_peak"] = close.shift(1).rolling(slope_window * 2).max()
     x["peak_distance"] = close / x["recent_peak"] - 1.0
     x["downtrend_blocked"] = (
         (x["slow_drift"] <= -0.002)

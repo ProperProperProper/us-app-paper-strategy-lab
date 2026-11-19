@@ -9,6 +9,20 @@ pub struct Candle {
     pub volume: f64,
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Features {
+    pub ema_fast: f64,
+    pub ema_slow: f64,
+    pub prior_high: f64,
+    pub atr14: f64,
+    pub regime_ema: f64,
+    pub slow_drift: f64,
+    pub regime_drift: f64,
+    pub log_slope: f64,
+    pub recent_peak: f64,
+}
+
 const MINUTE_NS: i64 = 60 * 1_000_000_000;
 const DAY_NS: i64 = 24 * 60 * MINUTE_NS;
 
@@ -121,6 +135,87 @@ pub unsafe extern "C" fn strategy_aggregate(
         i = end;
     }
     written as isize
+}
+
+fn ema(values: &[f64], span: usize, out: &mut [f64]) {
+    let alpha = 2.0 / (span as f64 + 1.0);
+    if values.is_empty() { return; }
+    out[0] = values[0];
+    for i in 1..values.len() {
+        out[i] = alpha * values[i] + (1.0 - alpha) * out[i - 1];
+    }
+}
+
+fn rolling_max(values: &[f64], end_exclusive: usize, window: usize) -> f64 {
+    if end_exclusive < window { return f64::NAN; }
+    values[end_exclusive - window..end_exclusive]
+        .iter().copied().fold(f64::NEG_INFINITY, f64::max)
+}
+
+fn regression_slope(values: &[f64], end_exclusive: usize, window: usize) -> f64 {
+    if end_exclusive < window { return f64::NAN; }
+    let n = window as f64;
+    let mean_x = (n - 1.0) / 2.0;
+    let mean_y = values[end_exclusive - window..end_exclusive].iter().sum::<f64>() / n;
+    let denominator = (0..window).map(|i| {
+        let dx = i as f64 - mean_x;
+        dx * dx
+    }).sum::<f64>();
+    if denominator == 0.0 { return f64::NAN; }
+    let numerator = values[end_exclusive - window..end_exclusive].iter().enumerate().map(|(i, value)| {
+        (i as f64 - mean_x) * (*value - mean_y)
+    }).sum::<f64>();
+    numerator / denominator
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn strategy_features(
+    input: *const Candle,
+    len: usize,
+    fast: usize,
+    slow: usize,
+    lookback: usize,
+    regime_span: usize,
+    slope_window: usize,
+    slope_lag: usize,
+    output: *mut Features,
+    capacity: usize,
+) -> isize {
+    if input.is_null() || output.is_null() || len == 0 || capacity < len || fast == 0 || slow == 0 || lookback == 0 || regime_span == 0 || slope_window == 0 || slope_lag == 0 {
+        return -1;
+    }
+    let rows = std::slice::from_raw_parts(input, len);
+    if strategy_validate(input, len) == 0 { return -2; }
+    let closes: Vec<f64> = rows.iter().map(|r| r.close).collect();
+    let highs: Vec<f64> = rows.iter().map(|r| r.high).collect();
+    let mut fast_ema = vec![f64::NAN; len];
+    let mut slow_ema = vec![f64::NAN; len];
+    let mut regime_ema = vec![f64::NAN; len];
+    ema(&closes, fast, &mut fast_ema);
+    ema(&closes, slow, &mut slow_ema);
+    ema(&closes, regime_span, &mut regime_ema);
+    let mut true_ranges = vec![0.0; len];
+    let logs: Vec<f64> = closes.iter().map(|value| value.max(1e-12).ln()).collect();
+    for i in 0..len {
+        let previous = if i == 0 { closes[0] } else { closes[i - 1] };
+        true_ranges[i] = (rows[i].high - rows[i].low)
+            .max((rows[i].high - previous).abs())
+            .max((rows[i].low - previous).abs());
+    }
+    for i in 0..len {
+        let start = i.saturating_sub(13);
+        let count = i - start + 1;
+        let atr = true_ranges[start..=i].iter().sum::<f64>() / count as f64;
+        let slow_drift = if i >= slope_lag { slow_ema[i] / slow_ema[i - slope_lag] - 1.0 } else { f64::NAN };
+        let regime_drift = if i >= slope_lag { regime_ema[i] / regime_ema[i - slope_lag] - 1.0 } else { f64::NAN };
+        let log_slope = regression_slope(&logs, i + 1, slope_window);
+        // Match pandas: shift(1).rolling(window).max() at row i uses the
+        // preceding `window` values and excludes the current candle.
+        let prior_high = rolling_max(&highs, i, lookback);
+        let recent_peak = rolling_max(&closes, i, slope_window * 2);
+        (*output.add(i)) = Features { ema_fast: fast_ema[i], ema_slow: slow_ema[i], prior_high, atr14: atr, regime_ema: regime_ema[i], slow_drift, regime_drift, log_slope, recent_peak };
+    }
+    len as isize
 }
 
 #[cfg(test)]
