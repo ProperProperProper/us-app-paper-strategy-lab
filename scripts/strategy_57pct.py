@@ -281,8 +281,24 @@ def run(candles: pd.DataFrame, params: dict = BASELINE, capital: float = 100000.
     """Run the causal strategy with completed-candle-close execution."""
     _validate_candles(candles)
     x = add_features(candles, params)
-    rows = list(x.iterrows()); cash = float(capital); position = None; trades = []; equity_rows = []; slip = slippage_bps / 10000.0
-    for row_index, (stamp, bar) in enumerate(rows):
+    # Named tuples avoid constructing one Pandas Series per candle. The
+    # strategy parameters are invariant during a replay, so resolve them once
+    # instead of repeatedly looking them up inside the trade loop.
+    rows = list(x.itertuples(index=True, name="StrategyBar"))
+    cash = float(capital); position = None; trades = []; equity_rows = []; slip = slippage_bps / 10000.0
+    stop_pct = float(params.get("stop", 0.0354))
+    profit_exit_mode = params.get("profit_exit_mode", "legacy_target_lock")
+    break_even_trigger = float(params.get("break_even_trigger", 0.02))
+    break_even_lock = float(params.get("break_even_lock", 0.002))
+    profit_lock_trigger = float(params.get("profit_lock_trigger", 0.08))
+    profit_lock = float(params.get("profit_lock", 0.01))
+    trail_trigger = float(params.get("trail_trigger", 0.06))
+    trail_pct = float(params.get("trail_pct", 0.02))
+    target_pct = float(params.get("tp", 0.1069))
+    downtrend_gate = bool(params.get("downtrend_filter", True))
+    max_holding = int(params.get("max_holding_bars", 0))
+    for row_index, bar in enumerate(rows):
+        stamp = bar.Index
         if evaluation_start is not None and stamp < pd.Timestamp(evaluation_start): continue
         if not bool(bar.warmup_ready):
             continue
@@ -292,32 +308,31 @@ def run(candles: pd.DataFrame, params: dict = BASELINE, capital: float = 100000.
             entry = position["entry"]
             price = float(bar.close)
             position["peak_price"] = max(position["peak_price"], price, entry)
-            stop = entry * (1 - float(params.get("stop", 0.0354)))
-            if params.get("profit_exit_mode", "legacy_target_lock") == "legacy_target_lock":
-                if price >= entry * float(params.get("break_even_trigger", 0.02)) + entry:
+            stop = entry * (1 - stop_pct)
+            if profit_exit_mode == "legacy_target_lock":
+                if price >= entry * break_even_trigger + entry:
                     position["break_even_armed"] = True
-                if position["peak_price"] >= entry * (1 + float(params.get("profit_lock_trigger", 0.08))):
+                if position["peak_price"] >= entry * (1 + profit_lock_trigger):
                     position["profit_lock_armed"] = True
                 if position["break_even_armed"]:
-                    stop = max(stop, entry * (1 + float(params.get("break_even_lock", 0.002))))
+                    stop = max(stop, entry * (1 + break_even_lock))
                 if position["profit_lock_armed"]:
-                    stop = max(stop, entry * (1 + float(params.get("profit_lock", 0.01))))
-                if position["peak_price"] >= entry * (1 + float(params.get("trail_trigger", 0.06))):
-                    stop = max(stop, position["peak_price"] * (1 - float(params.get("trail_pct", 0.02))))
-            target = entry * (1 + float(params.get("tp", 0.1069)))
+                    stop = max(stop, entry * (1 + profit_lock))
+                if position["peak_price"] >= entry * (1 + trail_trigger):
+                    stop = max(stop, position["peak_price"] * (1 - trail_pct))
+            target = entry * (1 + target_pct)
             take_profit = price >= target
             stop_loss = price <= stop
             indicator_exit = (
                 params.get("profit_exit_mode") == "atr_peak_retrace"
                 and profit_capture_exit(
-                    price, entry, position["peak_price"], float(bar.get("atr14", 0.0)), params
+                price, entry, position["peak_price"], float(bar.atr14), params
                 )
             )
             reason = None; exit_raw = None; exit_time = stamp
             if take_profit: exit_raw, reason = float(bar.close), "TP"
             elif stop_loss: exit_raw, reason = float(bar.close), "STOP"
             elif indicator_exit: exit_raw, reason = float(bar.close), "PROFIT_CAPTURE_INDICATOR"
-            max_holding = int(params.get("max_holding_bars", 0))
             time_stop = max_holding > 0 and (row_index - position["entry_index"]) >= max_holding
             if reason is None and time_stop: exit_raw, reason = float(bar.close), "TIME_STOP"
             elif bool(bar.exit_signal): exit_raw, reason = float(bar.close), "RULE_EXIT"
@@ -326,7 +341,7 @@ def run(candles: pd.DataFrame, params: dict = BASELINE, capital: float = 100000.
                 exit_fee = fee_model(position["qty"] * exit_price) if fee_model else commission
                 costs = position["entry_fee"] + exit_fee; net = gross - costs; cash += position["qty"] * exit_price - exit_fee
                 trades.append(Trade(position["signal_time"].isoformat(), position["entry_time"].isoformat(), entry, position["qty"], exit_time.isoformat(), exit_price, gross, costs, net, net / (entry * position["qty"]) * 100, reason)); position = None; continue
-        gate_on = bool(params.get("downtrend_filter", True))
+        gate_on = downtrend_gate
         # The completed candle produces the signal and execution is simulated
         # at that candle's close; no next-candle data is consulted.
         if position is None and bool(bar.entry_signal) and (not gate_on or not bool(bar.downtrend_blocked)):
