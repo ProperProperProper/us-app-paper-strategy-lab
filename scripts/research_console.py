@@ -138,6 +138,10 @@ class Handler(BaseHTTPRequestHandler):
                 command = [sys.executable, str(ROOT / "scripts" / "app_strategy_lab.py"), "--db", str(ROOT / "quant_dashboard.sqlite3"), "--agents", str(max(1, min(4, int(body.get("agents", 2))))), "--candidates", str(max(1, min(1000, int(body.get("candidates", 100))))), "--providers", "local,nvidia,antigravity", "--continuous"]
                 RUNS.mkdir(exist_ok=True)
                 STATE["process"] = subprocess.Popen(command, cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                try:
+                    os.setpriority(os.PRIO_PROCESS, STATE["process"].pid, 10)
+                except (AttributeError, OSError):
+                    pass
                 STATE["started_at"] = time.time()
                 STATE["config"] = body
                 self.send_json({"message": "US.APP mutation lab started", "pid": STATE["process"].pid})
