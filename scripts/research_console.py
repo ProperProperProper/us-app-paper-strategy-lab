@@ -135,7 +135,7 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 length = int(self.headers.get("content-length", "0"))
                 body = json.loads(self.rfile.read(length) or "{}")
-                command = [sys.executable, str(ROOT / "scripts" / "app_strategy_lab.py"), "--db", str(ROOT / "quant_dashboard.sqlite3"), "--agents", str(max(1, min(4, int(body.get("agents", 2))))), "--candidates", str(max(1, min(1000, int(body.get("candidates", 100))))), "--providers", "local,nvidia,antigravity", "--continuous"]
+                command = [sys.executable, str(ROOT / "scripts" / "app_strategy_lab.py"), "--db", str(ROOT / "quant_dashboard.sqlite3"), "--agents", str(max(1, min(5, int(body.get("agents", 5))))), "--candidates", str(max(1, min(1000, int(body.get("candidates", 1))))), "--providers", "local,nvidia,antigravity", "--continuous"]
                 RUNS.mkdir(exist_ok=True)
                 STATE["process"] = subprocess.Popen(command, cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 try:

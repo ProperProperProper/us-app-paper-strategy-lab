@@ -87,7 +87,7 @@ def ensure_processes() -> None:
     keep_one("scripts/research_console.py")
     keep_one("scripts/competition_bot.py")
     if not processes("scripts/app_strategy_lab.py"):
-        start([PYTHON, "scripts/app_strategy_lab.py", "--db", "quant_dashboard.sqlite3", "--run-dir", "strategy_lab_runs", "--agents", "1", "--candidates", "1", "--providers", "local,nvidia,antigravity", "--continuous"], "strategy lab")
+        start([PYTHON, "scripts/app_strategy_lab.py", "--db", "quant_dashboard.sqlite3", "--run-dir", "strategy_lab_runs", "--agents", "5", "--candidates", "1", "--providers", "local,nvidia,antigravity", "--continuous"], "strategy lab")
     if not processes("scripts/research_console.py"):
         start([PYTHON, "scripts/research_console.py"], "research console")
     if not processes("scripts/competition_bot.py"):

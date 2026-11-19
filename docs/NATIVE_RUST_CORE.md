@@ -23,3 +23,8 @@ a portability fallback. The strategy equations, blind replay, agent loop,
 SQLite orchestration, Moomoo access, and SIMULATE-only paper execution remain
 Python. Rust output must match the Python fallback before it is relied upon for
 research comparisons.
+
+The default supervisor allocation is five lab agents on this ten-core Apple
+Silicon machine, leaving approximately half the CPU available for the paper
+bot, model providers, and other applications. Each round remains bounded to
+one candidate per agent.
