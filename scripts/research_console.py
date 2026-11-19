@@ -48,9 +48,16 @@ def running_pid():
 def runtime_status():
     path = RUNS / "app_runtime_status.json"
     try:
-        return json.loads(path.read_text())
+        payload = json.loads(path.read_text())
     except (OSError, json.JSONDecodeError):
         return None
+    # A forced termination can occur before app_strategy_lab.py reaches its
+    # finally block. Never expose a stale RUNNING state in that case.
+    if payload.get("state") == "RUNNING" and running_pid() is None:
+        payload = dict(payload)
+        payload["state"] = "STOPPED"
+        payload["stale_process_state"] = True
+    return payload
 
 
 def latest_payload():
