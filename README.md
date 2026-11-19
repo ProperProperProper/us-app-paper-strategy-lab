@@ -42,6 +42,7 @@ Moomoo OpenD must be available at `127.0.0.1:11111` for fresh candles. The lab, 
 - [External gateway and MCP setup](docs/EXTERNAL_GATEWAY.md)
 - [Paper-trading boundary](docs/PAPER_TRADING.md)
 - [Engineering concepts](docs/ENGINEERING_CONCEPTS.md)
+- [Native Rust core](docs/NATIVE_RUST_CORE.md)
 - [Antigravity integration](docs/ANTIGRAVITY.md)
 - [Antigravity code-audit handover](docs/ANTIGRAVITY_CODE_AUDIT_HANDOVER.md)
 - [Security](docs/SECURITY.md)

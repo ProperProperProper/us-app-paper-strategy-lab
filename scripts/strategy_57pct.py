@@ -12,6 +12,15 @@ from dataclasses import dataclass, asdict
 import numpy as np
 import pandas as pd
 
+try:
+    from native_core import aggregate as native_aggregate
+    from native_core import available as native_core_available
+    from native_core import validate as native_validate
+except ImportError:
+    native_aggregate = None
+    native_core_available = lambda: False
+    native_validate = None
+
 
 BASELINE = {
     "lookback": 33, "fast": 17, "slow": 26,
@@ -43,6 +52,8 @@ def aggregate_candles(candles: pd.DataFrame, interval_minutes: int) -> pd.DataFr
         frame = frame.set_index("time_key").sort_index()
     if not isinstance(frame.index, pd.DatetimeIndex):
         raise ValueError("candles must have a DatetimeIndex for interval aggregation")
+    if native_core_available():
+        return native_aggregate(frame, interval)
     if frame.empty or interval == 10:
         return frame
     expected = interval // 10
@@ -223,6 +234,8 @@ def _validate_candles(candles: pd.DataFrame) -> None:
     missing = required.difference(candles.columns)
     if missing:
         raise ValueError(f"missing candle columns: {sorted(missing)}")
+    if native_core_available() and not native_validate(candles):
+        raise ValueError("native Rust candle validation failed")
 
 
 def _validate_trades(trades) -> None:
