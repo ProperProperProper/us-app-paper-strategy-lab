@@ -31,5 +31,7 @@ one candidate per agent.
 
 Deterministic mutation candidates run in separate Python worker processes, not
 threads, so CPU-bound evaluation is not serialized by Python's GIL. Provider
-calls and promotion remain in the coordinator process; the worker count is
-capped at five.
+calls and promotion remain in the coordinator process. The evaluator is capped
+at four worker processes plus one coordinator, and NumPy/BLAS thread pools are
+forced to one thread each, so the project is hard-capped at approximately half
+of this machine's ten CPU cores.

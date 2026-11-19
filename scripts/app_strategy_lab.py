@@ -20,6 +20,11 @@ import time
 import uuid
 from pathlib import Path
 
+# Prevent NumPy/Pandas/scikit-learn worker processes from multiplying the
+# evaluator's CPU footprint beyond the explicit process-pool cap.
+for _thread_env in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS"):
+    os.environ[_thread_env] = "1"
+
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -67,6 +72,7 @@ PROFIT_EXIT_RESEARCH_VARIANTS = (
 MIN_PROMOTION_TRADES = 3
 MAX_PROMOTION_DRAWDOWN_DEGRADATION_PCT = 1.0
 TRAIN_SESSIONS = 21
+MAX_EVALUATOR_WORKERS = 4  # four workers plus one coordinator <= half of 10 cores
 ACTIVE_POOL: concurrent.futures.ProcessPoolExecutor | None = None
 
 
@@ -399,10 +405,10 @@ def main() -> int:
             round_number += 1
             write_status(status_file, {"state": "RUNNING", "symbol": "US.APP", "interval": "10m", "round": round_number, "run_dir": str(run_dir), "profile": profile})
             global ACTIVE_POOL
-            pool = concurrent.futures.ProcessPoolExecutor(max_workers=max(1, min(5, args.agents)))
+            pool = concurrent.futures.ProcessPoolExecutor(max_workers=max(1, min(MAX_EVALUATOR_WORKERS, args.agents)))
             ACTIVE_POOL = pool
             try:
-                jobs = [pool.submit(mutation_batch, frame, parents, 900000 + round_number * 100 + i, args.candidates) for i in range(max(1, min(5, args.agents)))]
+                jobs = [pool.submit(mutation_batch, frame, parents, 900000 + round_number * 100 + i, args.candidates) for i in range(max(1, min(MAX_EVALUATOR_WORKERS, args.agents)))]
                 candidates = [item for job in jobs for item in job.result()]
             finally:
                 pool.shutdown(wait=True, cancel_futures=True)
