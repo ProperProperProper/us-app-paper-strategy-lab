@@ -396,9 +396,15 @@ def walk_forward_optimize(candles, base=BASELINE, capital=100000.0, allocation=A
 
     The old implementation used multiple rolling folds.  Keep this public
     name for local callers, but make it obey the project's single hard
-    evaluation protocol everywhere.
+    evaluation protocol everywhere. Candidates are ranked on training data
+    only; ``walk_forward_replay`` performs the untouched continuous test.
     """
     frame = candles.sort_index()
+    sessions = list(frame.index.normalize().drop_duplicates())
+    if len(sessions) <= 21:
+        return []
+    test_start = sessions[21]
+    train = frame.loc[frame.index.normalize() < test_start]
     rng = random.Random(seed)
     proposals = [dict(base)]
     for _ in range(min(int(trials), 240)):
@@ -410,19 +416,26 @@ def walk_forward_optimize(candles, base=BASELINE, capital=100000.0, allocation=A
             proposals.append(proposal)
     results = []
     for index, proposal in enumerate(proposals, 1):
-        replay = blind_session_walk_forward(
-            frame, [proposal], capital, allocation, slippage_bps, commission,
-            min_train_sessions=21, fee_model=fee_model,
+        _, train_trades, train_data = run(
+            train, proposal, capital, allocation, slippage_bps, commission,
+            fee_model=fee_model,
         )
-        if replay.get("status") != "OK":
+        stats_result = _stats(train_trades, train_data["equity"], capital)
+        if stats_result["trades"] < 3:
             continue
-        stats_result = dict(replay["aggregate"])
-        stats_result["test_start"] = replay["test_start"]
-        stats_result["test_end"] = replay["test_end"]
         stats_result["selection_score"] = round(
             stats_result["total_return_pct"] - .35 * abs(stats_result["max_drawdown_pct"]), 3
         )
-        results.append({"params": proposal, "stats": stats_result})
+        results.append({
+            "params": proposal,
+            "stats": stats_result,
+            "selection_window": {
+                "train_start": str(train.index[0]),
+                "train_end": str(train.index[-1]),
+                "test_start": str(test_start),
+                "protocol": "first_21_sessions_then_one_continuous_unseen_replay",
+            },
+        })
         if progress and (index % 25 == 0 or index == len(proposals)):
             progress(index, len(proposals), f"Continuous blind replay candidate {index}/{len(proposals)}")
     return sorted(results, key=lambda row: row["stats"]["selection_score"], reverse=True)[:25]
