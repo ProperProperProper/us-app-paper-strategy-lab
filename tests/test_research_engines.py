@@ -64,7 +64,8 @@ class SupervisorAndHotSwapTests(unittest.TestCase):
 
     def test_supervisor_stops_only_duplicate_processes(self):
         with patch.object(session_monitor, "processes", return_value=[(10, "python bot"), (20, "python bot")]), \
-             patch.object(session_monitor, "stop") as stop:
+             patch.object(session_monitor, "stop") as stop, \
+             patch.object(session_monitor, "log"):
             session_monitor.keep_one("bot")
         stop.assert_called_once_with(20)
 
