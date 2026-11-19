@@ -38,6 +38,8 @@ def _library() -> ctypes.CDLL | None:
             lib.strategy_aggregate.restype = ctypes.c_ssize_t
             lib.strategy_features.argtypes = [ctypes.POINTER(_Candle), ctypes.c_size_t, ctypes.c_size_t, ctypes.c_size_t, ctypes.c_size_t, ctypes.c_size_t, ctypes.c_size_t, ctypes.c_size_t, ctypes.POINTER(_Features), ctypes.c_size_t]
             lib.strategy_features.restype = ctypes.c_ssize_t
+            lib.strategy_profit_capture_exit.argtypes = [ctypes.c_double] * 8
+            lib.strategy_profit_capture_exit.restype = ctypes.c_int32
             return lib
     return None
 
@@ -96,3 +98,15 @@ def features(frame: pd.DataFrame, fast: int, slow: int, lookback: int,
     if count < 0:
         raise ValueError(f"native feature operation failed with code {count}")
     return pd.DataFrame({name: output[name][:int(count)] for name in output.dtype.names}, index=frame.index)
+
+
+def profit_capture_exit(price: float, entry: float, peak: float, atr: float,
+                        arm_return: float, lock_return: float,
+                        atr_multiple: float, min_retrace: float) -> bool:
+    lib = _library()
+    if lib is None:
+        raise RuntimeError("native Rust strategy core is not built")
+    return bool(lib.strategy_profit_capture_exit(
+        float(price), float(entry), float(peak), float(atr), float(arm_return),
+        float(lock_return), float(atr_multiple), float(min_retrace),
+    ))

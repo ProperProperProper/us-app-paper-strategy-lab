@@ -10,6 +10,7 @@ The deterministic candle hot path now has a native Rust implementation:
 - complete-session 10m-to-10m/20m/30m/40m/50m/60m/70m aggregation; and
 - causal strategy indicators: fast/slow/regime EMA, prior breakout high,
   ATR(14), EMA drifts, log-price regression slope, and prior recent peak; and
+- the timeframe-independent ATR/peak profit-capture exit equation; and
 - zero-copy array exchange across the Python/Rust boundary during each call.
 
 Build it on Apple Silicon with:

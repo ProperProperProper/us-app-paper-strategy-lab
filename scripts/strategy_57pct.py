@@ -16,11 +16,13 @@ try:
     from native_core import aggregate as native_aggregate
     from native_core import available as native_core_available
     from native_core import features as native_features
+    from native_core import profit_capture_exit as native_profit_capture_exit
     from native_core import validate as native_validate
 except ImportError:
     native_aggregate = None
     native_core_available = lambda: False
     native_features = None
+    native_profit_capture_exit = None
     native_validate = None
 
 
@@ -228,6 +230,14 @@ def profit_capture_exit(price: float, entry: float, peak: float, atr: float,
     a locked return floor or an ATR/peak retracement floor. It has no clock,
     session-duration, or fixed-bar holding rule.
     """
+    if native_core_available():
+        return native_profit_capture_exit(
+            price, entry, peak, atr,
+            float(params.get("profit_arm_return", 0.08)),
+            float(params.get("profit_lock_return", 0.02)),
+            float(params.get("profit_atr_multiple", 2.5)),
+            float(params.get("profit_min_retrace", 0.03)),
+        )
     if entry <= 0 or peak < entry or price <= 0 or atr < 0:
         return False
     arm_return = float(params.get("profit_arm_return", 0.08))

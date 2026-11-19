@@ -139,7 +139,9 @@ pub unsafe extern "C" fn strategy_aggregate(
 
 fn ema(values: &[f64], span: usize, out: &mut [f64]) {
     let alpha = 2.0 / (span as f64 + 1.0);
-    if values.is_empty() { return; }
+    if values.is_empty() {
+        return;
+    }
     out[0] = values[0];
     for i in 1..values.len() {
         out[i] = alpha * values[i] + (1.0 - alpha) * out[i - 1];
@@ -147,24 +149,39 @@ fn ema(values: &[f64], span: usize, out: &mut [f64]) {
 }
 
 fn rolling_max(values: &[f64], end_exclusive: usize, window: usize) -> f64 {
-    if end_exclusive < window { return f64::NAN; }
+    if end_exclusive < window {
+        return f64::NAN;
+    }
     values[end_exclusive - window..end_exclusive]
-        .iter().copied().fold(f64::NEG_INFINITY, f64::max)
+        .iter()
+        .copied()
+        .fold(f64::NEG_INFINITY, f64::max)
 }
 
 fn regression_slope(values: &[f64], end_exclusive: usize, window: usize) -> f64 {
-    if end_exclusive < window { return f64::NAN; }
+    if end_exclusive < window {
+        return f64::NAN;
+    }
     let n = window as f64;
     let mean_x = (n - 1.0) / 2.0;
-    let mean_y = values[end_exclusive - window..end_exclusive].iter().sum::<f64>() / n;
-    let denominator = (0..window).map(|i| {
-        let dx = i as f64 - mean_x;
-        dx * dx
-    }).sum::<f64>();
-    if denominator == 0.0 { return f64::NAN; }
-    let numerator = values[end_exclusive - window..end_exclusive].iter().enumerate().map(|(i, value)| {
-        (i as f64 - mean_x) * (*value - mean_y)
-    }).sum::<f64>();
+    let mean_y = values[end_exclusive - window..end_exclusive]
+        .iter()
+        .sum::<f64>()
+        / n;
+    let denominator = (0..window)
+        .map(|i| {
+            let dx = i as f64 - mean_x;
+            dx * dx
+        })
+        .sum::<f64>();
+    if denominator == 0.0 {
+        return f64::NAN;
+    }
+    let numerator = values[end_exclusive - window..end_exclusive]
+        .iter()
+        .enumerate()
+        .map(|(i, value)| (i as f64 - mean_x) * (*value - mean_y))
+        .sum::<f64>();
     numerator / denominator
 }
 
@@ -181,11 +198,23 @@ pub unsafe extern "C" fn strategy_features(
     output: *mut Features,
     capacity: usize,
 ) -> isize {
-    if input.is_null() || output.is_null() || len == 0 || capacity < len || fast == 0 || slow == 0 || lookback == 0 || regime_span == 0 || slope_window == 0 || slope_lag == 0 {
+    if input.is_null()
+        || output.is_null()
+        || len == 0
+        || capacity < len
+        || fast == 0
+        || slow == 0
+        || lookback == 0
+        || regime_span == 0
+        || slope_window == 0
+        || slope_lag == 0
+    {
         return -1;
     }
     let rows = std::slice::from_raw_parts(input, len);
-    if strategy_validate(input, len) == 0 { return -2; }
+    if strategy_validate(input, len) == 0 {
+        return -2;
+    }
     let closes: Vec<f64> = rows.iter().map(|r| r.close).collect();
     let highs: Vec<f64> = rows.iter().map(|r| r.high).collect();
     let mut fast_ema = vec![f64::NAN; len];
@@ -206,16 +235,61 @@ pub unsafe extern "C" fn strategy_features(
         let start = i.saturating_sub(13);
         let count = i - start + 1;
         let atr = true_ranges[start..=i].iter().sum::<f64>() / count as f64;
-        let slow_drift = if i >= slope_lag { slow_ema[i] / slow_ema[i - slope_lag] - 1.0 } else { f64::NAN };
-        let regime_drift = if i >= slope_lag { regime_ema[i] / regime_ema[i - slope_lag] - 1.0 } else { f64::NAN };
+        let slow_drift = if i >= slope_lag {
+            slow_ema[i] / slow_ema[i - slope_lag] - 1.0
+        } else {
+            f64::NAN
+        };
+        let regime_drift = if i >= slope_lag {
+            regime_ema[i] / regime_ema[i - slope_lag] - 1.0
+        } else {
+            f64::NAN
+        };
         let log_slope = regression_slope(&logs, i + 1, slope_window);
         // Match pandas: shift(1).rolling(window).max() at row i uses the
         // preceding `window` values and excludes the current candle.
         let prior_high = rolling_max(&highs, i, lookback);
         let recent_peak = rolling_max(&closes, i, slope_window * 2);
-        (*output.add(i)) = Features { ema_fast: fast_ema[i], ema_slow: slow_ema[i], prior_high, atr14: atr, regime_ema: regime_ema[i], slow_drift, regime_drift, log_slope, recent_peak };
+        (*output.add(i)) = Features {
+            ema_fast: fast_ema[i],
+            ema_slow: slow_ema[i],
+            prior_high,
+            atr14: atr,
+            regime_ema: regime_ema[i],
+            slow_drift,
+            regime_drift,
+            log_slope,
+            recent_peak,
+        };
     }
     len as isize
+}
+
+#[no_mangle]
+pub extern "C" fn strategy_profit_capture_exit(
+    price: f64,
+    entry: f64,
+    peak: f64,
+    atr: f64,
+    arm_return: f64,
+    lock_return: f64,
+    atr_multiple: f64,
+    min_retrace: f64,
+) -> i32 {
+    if entry <= 0.0 || peak < entry || price <= 0.0 || atr < 0.0 {
+        return 0;
+    }
+    if peak < entry * (1.0 + arm_return) {
+        return 0;
+    }
+    let lock_price = entry * (1.0 + lock_return);
+    let atr_floor = peak - atr_multiple * atr;
+    let retrace_floor = peak * (1.0 - min_retrace);
+    if price <= lock_price.max(atr_floor).max(retrace_floor) {
+        1
+    } else {
+        0
+    }
 }
 
 #[cfg(test)]
@@ -224,7 +298,14 @@ mod tests {
 
     #[test]
     fn rejects_bad_ohlc() {
-        let row = Candle { time_ns: 1, open: 10.0, high: 9.0, low: 9.0, close: 10.0, volume: 1.0 };
+        let row = Candle {
+            time_ns: 1,
+            open: 10.0,
+            high: 9.0,
+            low: 9.0,
+            close: 10.0,
+            volume: 1.0,
+        };
         assert!(!valid(&row));
     }
 }
