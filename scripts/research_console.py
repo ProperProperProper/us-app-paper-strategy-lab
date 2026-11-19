@@ -93,7 +93,12 @@ def paper_status():
         recent = [line.strip() for line in log_path.read_text().splitlines()[-20:] if line.strip()]
     except OSError:
         pass
-    errors = [line for line in recent if "ERROR" in line or "Traceback" in line]
+    # Do not surface an already-recovered exception as the current fault. A
+    # successful candle recovery or strategy/plugin load establishes a new
+    # healthy boundary; only errors after that boundary are recent.
+    healthy_markers = ("merged live K-line recovery", "hot-swapped strategy", "hot-swapped strategy plugin")
+    last_healthy = max((index for index, line in enumerate(recent) if any(marker in line for marker in healthy_markers)), default=-1)
+    errors = [line for line in recent[last_healthy + 1:] if "ERROR" in line or "Traceback" in line]
     return {
         "running": bool(processes),
         "mode": "SIMULATE" if any("--live-paper" in p["command"] for p in processes) else "DRY_RUN",
