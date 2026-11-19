@@ -18,6 +18,7 @@ import pandas as pd
 # records from diverging between separate script-local databases.
 DB_PATH = Path(__file__).resolve().parents[1] / "quant_dashboard.sqlite3"
 MIN_CANDLE_DATE = "2026-01-01T00:00:00"
+RESEARCH_INTERVALS = (10, 20, 30, 40, 50, 60, 70)
 
 
 def _json(value: Any) -> str:
@@ -81,15 +82,22 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
         );
         """
     )
-    # The reproducible lab only supports the current 2026 dataset and future
-    # data. Enforce retention at the storage boundary so every importer and
-    # live refresh removes pre-2026 candle history consistently.
+    # The reproducible lab only supports the current 2026 dataset and the
+    # sanctioned research intervals. Enforce both rules at the storage
+    # boundary so legacy tester imports cannot reintroduce stale data.
     db.execute("DELETE FROM candles WHERE time_key < ?", (MIN_CANDLE_DATE,))
+    placeholders = ",".join("?" for _ in RESEARCH_INTERVALS)
+    db.execute(
+        f"DELETE FROM candles WHERE interval_minutes NOT IN ({placeholders})",
+        RESEARCH_INTERVALS,
+    )
     db.commit()
     return db
 
 
 def save_candles(frame: pd.DataFrame, symbol: str, interval_minutes: int, source: str = "moomoo_opend") -> int:
+    if int(interval_minutes) not in RESEARCH_INTERVALS:
+        raise ValueError(f"interval must be one of {RESEARCH_INTERVALS}")
     db = connect()
     count = 0
     try:

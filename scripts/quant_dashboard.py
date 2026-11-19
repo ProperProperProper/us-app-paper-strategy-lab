@@ -28,7 +28,7 @@ from urllib.parse import urlparse
 
 from competition_bot import CompetitionBot
 from charting import charts
-from strategy_57pct import BASELINE, walk_forward_optimize, walk_forward_replay
+from strategy_57pct import BASELINE, RESEARCH_INTERVALS, aggregate_candles, walk_forward_optimize, walk_forward_replay
 from strategy_57pct import stats as strategy_stats
 from moomoo import AuType, KLType, KL_FIELD, OpenQuoteContext, OpenSecTradeContext, RET_OK, TrdMarket
 from quant_storage import load_candles, save_backtest, save_candles
@@ -74,16 +74,20 @@ def accounts() -> list[dict[str, Any]]:
 
 
 def fetch_moomoo_candles(symbol: str, start: str, end: str, interval_minutes: int) -> int:
-    interval_types = {1: KLType.K_1M, 3: KLType.K_3M, 5: KLType.K_5M, 10: KLType.K_10M, 15: KLType.K_15M, 30: KLType.K_30M, 1440: KLType.K_DAY}
-    if interval_minutes not in interval_types:
-        raise ValueError("Interval must be 1, 3, 5, 10, 15, 30, or 1440 minutes")
+    interval_minutes = int(interval_minutes)
+    if interval_minutes not in RESEARCH_INTERVALS:
+        raise ValueError(f"Interval must be one of {RESEARCH_INTERVALS}")
+    # Moomoo does not expose every research interval directly. Fetch the
+    # canonical 10-minute source and derive higher intervals locally so the
+    # tester cannot recreate legacy 15-minute or daily candle rows.
+    source_interval = 10
     quote = OpenQuoteContext(host="127.0.0.1", port=11111)
     frames = []
     page_key = None
     try:
         while True:
             ret, data, page_key = quote.request_history_kline(
-                code=symbol, start=start, end=end, ktype=interval_types[interval_minutes],
+                code=symbol, start=start, end=end, ktype=KLType.K_10M,
                 autype=AuType.QFQ, fields=[KL_FIELD.ALL], max_count=1000,
                 page_req_key=page_key, extended_time=False,
             )
@@ -101,7 +105,11 @@ def fetch_moomoo_candles(symbol: str, start: str, end: str, interval_minutes: in
     frame["time_key"] = pd.to_datetime(frame["time_key"])
     frame = frame.sort_values("time_key").drop_duplicates("time_key").set_index("time_key")
     frame = frame.dropna(subset=["open", "high", "low", "close"])
-    return save_candles(frame, symbol, interval_minutes)
+    saved = save_candles(frame, symbol, source_interval)
+    if interval_minutes == source_interval:
+        return saved
+    derived = aggregate_candles(frame, interval_minutes)
+    return save_candles(derived, symbol, interval_minutes)
 
 
 def execution_status() -> dict[str, Any]:

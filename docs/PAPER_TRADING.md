@@ -35,5 +35,6 @@ open http://127.0.0.1:8790
 ```
 
 The research console shows the continuous lab and Paper bot health. The
-legacy 8780 dashboard remains an optional tester interface; its paper-execution
+optional 8780 tester uses the same sanctioned 10–70-minute interval set and
+derives higher intervals from 10-minute source candles; its paper-execution
 control is also forced through `TrdEnv.SIMULATE`.
