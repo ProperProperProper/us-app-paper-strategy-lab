@@ -21,6 +21,7 @@ ET = ZoneInfo("America/New_York")
 LOG = ROOT / "scripts" / "session_monitor.log"
 MONITOR_STARTED = time.time()
 HANDLED_FAULTS: set[str] = set()
+HANDOFF = ROOT / "strategy_lab_runs" / "supervisor_handoff.json"
 
 
 def log(message: str) -> None:
@@ -28,6 +29,30 @@ def log(message: str) -> None:
     print(line, flush=True)
     with LOG.open("a") as handle:
         handle.write(line + "\n")
+
+
+def record_handoff(source: str, message: str, code_fix_candidate: bool) -> None:
+    """Persist a review queue for Codex/Antigravity fault assessment."""
+    HANDOFF.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        payload = json.loads(HANDOFF.read_text()) if HANDOFF.exists() else {}
+    except (OSError, json.JSONDecodeError):
+        payload = {}
+    faults = payload.get("faults", []) if isinstance(payload.get("faults"), list) else []
+    event = {
+        "created_at": datetime.now(ET).isoformat(),
+        "source": source,
+        "message": str(message)[-1000:],
+        "severity": "error",
+        "status": "PENDING_CODEX_REVIEW",
+        "code_fix_candidate": bool(code_fix_candidate),
+        "automatic_action": "service_restart_or_safe_continuation",
+    }
+    faults.append(event)
+    payload = {"status": "PENDING_CODEX_REVIEW", "faults": faults[-100:]}
+    temporary = HANDOFF.with_name(HANDOFF.name + ".tmp")
+    temporary.write_text(json.dumps(payload, indent=2) + "\n")
+    temporary.replace(HANDOFF)
 
 
 def processes(pattern: str) -> list[tuple[int, str]]:
@@ -153,6 +178,7 @@ def health_check() -> None:
     if bot_fault and bot_fault not in HANDLED_FAULTS:
         HANDLED_FAULTS.add(bot_fault)
         log(f"paper bot fault detected: {bot_fault}")
+        record_handoff("paper_bot", bot_fault, "Traceback" in bot_fault or "rejected" in bot_fault.lower())
         restart_process("scripts/competition_bot.py", "paper bot")
     ensure_processes()
     check_open_d()
@@ -181,6 +207,7 @@ def main() -> int:
             health_check()
         except Exception as exc:
             log(f"health fault: {exc}")
+            record_handoff("session_monitor", str(exc), True)
         time.sleep(30)
 
 

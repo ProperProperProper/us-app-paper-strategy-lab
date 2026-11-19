@@ -108,6 +108,14 @@ def paper_status():
     }
 
 
+def supervisor_handoff():
+    path = RUNS / "supervisor_handoff.json"
+    try:
+        return json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return {"status": "CLEAR", "faults": []}
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *_args):
         return
@@ -123,7 +131,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/api/state":
-            self.send_json({"running": running_pid() is not None, "pid": running_pid(), "config": STATE.get("config"), "runtime": runtime_status(), "latest": latest_payload(), "paper": paper_status()})
+            self.send_json({"running": running_pid() is not None, "pid": running_pid(), "config": STATE.get("config"), "runtime": runtime_status(), "latest": latest_payload(), "paper": paper_status(), "supervisor_handoff": supervisor_handoff()})
             return
         raw = HTML.encode()
         self.send_response(200)
