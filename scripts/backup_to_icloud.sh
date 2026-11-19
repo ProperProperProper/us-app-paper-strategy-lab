@@ -29,13 +29,13 @@ trap cleanup EXIT INT TERM
   "$PROJECT_ROOT/" "$STAGING/"
 
 # SQLite's online backup API produces a consistent snapshot while the lab and
-# paper bot are running. Keep the original relative paths in the backup.
-for relative in quant_dashboard.sqlite3 scripts/quant_dashboard.sqlite3; do
-  source="$PROJECT_ROOT/$relative"
+# paper bot are running. Snapshot every SQLite database, not only the primary
+# dashboard database, while preserving its relative path.
+while IFS= read -r -d '' source; do
+  relative="${source#$PROJECT_ROOT/}"
   target="$STAGING/$relative"
-  if [[ -f "$source" ]]; then
-    mkdir -p "$(dirname "$target")"
-    /usr/bin/python3 - "$source" "$target" <<'PY'
+  mkdir -p "$(dirname "$target")"
+  /usr/bin/python3 - "$source" "$target" <<'PY'
 import sqlite3
 import sys
 
@@ -43,8 +43,7 @@ source, target = sys.argv[1:]
 with sqlite3.connect(source) as src, sqlite3.connect(target) as dst:
     src.backup(dst)
 PY
-  fi
-done
+done < <(/usr/bin/find "$PROJECT_ROOT" -type f -name '*.sqlite3' -not -path '*/.git/*' -print0)
 
 git_revision="$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || print unknown)"
 {
@@ -52,13 +51,14 @@ git_revision="$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || print unkno
   print "git_revision=$git_revision"
   print "source=$PROJECT_ROOT"
   print "sqlite_snapshot=online_backup_api"
+  print "sqlite_files=$(find "$STAGING" -type f -name '*.sqlite3' | wc -l | tr -d ' ')"
 } > "$STAGING/BACKUP_MANIFEST.txt"
 
 # iCloud Drive does not reliably permit renaming an existing synced directory.
 # Mirror the completed staging tree into the one snapshot instead; --delete
 # removes files that no longer belong while preserving the destination folder.
 mkdir -p "$BACKUP_ROOT"
-/usr/bin/rsync -a --delete "$STAGING/" "$BACKUP_ROOT/"
+/usr/bin/rsync -a --delete --delete-excluded "$STAGING/" "$BACKUP_ROOT/"
 trap - EXIT INT TERM
 rm -rf "$STAGING"
 print "iCloud backup complete: $BACKUP_ROOT"

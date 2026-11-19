@@ -18,14 +18,15 @@ scripts/install_icloud_backup_schedule.sh
 
 The scheduled macOS LaunchAgent runs the same script every 604800 seconds. It
 mirrors the project, current 2026+ data, Git history, runtime state, and
-documentation. SQLite databases are copied through SQLite's online backup API
-so the snapshot remains consistent while the lab is running. Temporary caches,
+documentation. All SQLite databases are copied through SQLite's online backup
+API so the snapshot remains consistent while the lab is running. Temporary caches,
 SQLite WAL/SHM sidecars, locks, and Python bytecode are excluded.
 
 The snapshot is staged locally, then mirrored with `rsync --delete` after the
 staging copy completes. This avoids renaming an existing iCloud-synced folder,
 which iCloud may reject. If iCloud Drive is unavailable, the script fails
-before the mirror step.
+before the mirror step. Verify the completed snapshot with
+`scripts/verify_icloud_backup.py` before restoring it elsewhere.
 
 ## Restore on another Mac
 

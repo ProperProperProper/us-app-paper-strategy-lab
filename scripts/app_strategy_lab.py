@@ -127,6 +127,21 @@ def write_live_strategy(symbol: str, interval: int, params: dict, run_id: str) -
     payload = {"symbol": symbol, "interval": int(interval), "params": dict(params),
                "run_id": run_id, "updated_at": pd.Timestamp.now(tz="UTC").isoformat(),
                "mode": "SIMULATE"}
+    # Preserve the trusted structural plugin handoff when the sibling plugin
+    # project is installed. This prevents an approved code strategy from being
+    # silently downgraded to a parameter-only artifact on the next round.
+    plugin_root = Path(os.environ.get(
+        "US_APP_PLUGIN_SOURCE_ROOT",
+        str(ROOT.parent / "us-app-strategy-plugin-framework" / "src"),
+    )).expanduser().resolve()
+    if (plugin_root / "strategy_plugins").is_dir():
+        payload["plugin"] = {
+            "name": "us-app-donchian-ema",
+            "version": "lab-source",
+            "python_root": str(plugin_root),
+            "entrypoint": "strategy_plugins.us_app_plugin:USAppStrategyPlugin",
+            "constructor": {"lab_root": str(ROOT)},
+        }
     temporary = path.with_name(path.name + ".tmp")
     temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
     temporary.replace(path)
