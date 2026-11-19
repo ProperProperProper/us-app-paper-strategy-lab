@@ -294,7 +294,7 @@ def ask_agent(client: MCPClient | None, antigravity: AntigravityOptimizer | None
         "Use only the supplied DATA PROFILE and locally testable hypotheses as evidence; "
         "do not invent candle behavior, trades, or performance. Cite the relevant profile "
         "fact in your internal reasoning before returning JSON. "
-        "NVIDIA may suggest; "
+        "Optional providers may suggest; "
         "Antigravity is the only authority allowed to turn a suggestion into a "
         "locally tested configuration. Do not invent performance claims. "
         f"Role: {role}. DATA PROFILE: {json.dumps(profile)} "
@@ -415,6 +415,7 @@ def main() -> int:
                 ACTIVE_POOL = None
             candidates.extend(evaluate(frame, {**BASELINE, **variant}) for variant in PROFIT_EXIT_RESEARCH_VARIANTS)
             nvidia_proposals = []
+            apple_proposals = []
             message_ids = []
             if client:
                 for agent in range(max(1, args.agents)):
@@ -425,15 +426,29 @@ def main() -> int:
                             args.db, run_id, round_number, "nvidia", "antigravity",
                             "strategy_proposal", {"role": ["explorer", "critic", "risk reviewer"][agent % 3], "proposal": proposal},
                         ))
+                # Apple private-cloud is deliberately bounded to one research
+                # critic call per round. It is not used for coordination,
+                # code changes, execution, or promotion.
+                if "apple" in providers:
+                    proposal = ask_agent(
+                        client, None, "apple", profile, parents,
+                        "Apple private-cloud independent risk and exit critic",
+                    )
+                    if proposal:
+                        apple_proposals.append(proposal)
+                        message_ids.append(send_agent_message(
+                            args.db, run_id, round_number, "apple", "antigravity",
+                            "strategy_proposal", {"role": "risk and exit critic", "proposal": proposal},
+                        ))
             if antigravity:
-                configured_parents = parents + nvidia_proposals
-                if nvidia_proposals:
+                configured_parents = parents + nvidia_proposals + apple_proposals
+                if nvidia_proposals or apple_proposals:
                     message_ids.append(send_agent_message(
                         args.db, run_id, round_number, "research_lab", "antigravity",
-                        "controller_review_request", {"parents": parents, "nvidia_proposals": nvidia_proposals},
+                        "controller_review_request", {"parents": parents, "nvidia_proposals": nvidia_proposals, "apple_proposals": apple_proposals},
                     ))
                 for agent in range(max(1, args.agents)):
-                    proposal = ask_agent(None, antigravity, "antigravity", profile, configured_parents, "true controller: choose, constrain, and configure one NVIDIA proposal for local deterministic testing", nvidia_proposals)
+                    proposal = ask_agent(None, antigravity, "antigravity", profile, configured_parents, "true controller: choose, constrain, and configure one provider proposal for local deterministic testing", nvidia_proposals + apple_proposals)
                     if proposal:
                         candidates.append(evaluate(frame, proposal))
                         message_ids.append(send_agent_message(
@@ -462,7 +477,7 @@ def main() -> int:
                 promoted = {"status": "REJECTED", "params": dict(BASELINE), "reasons": promotion_reasons, "decision_basis": "continuous_unseen_replay_from_session_22_vs_fresh_10m_baseline", "baseline_final_test": baseline_final_test["stats"], "baseline_current_window": baseline_current_window["stats"]}
             else:
                 promoted = write_live_strategy("US.APP", selected_interval, selected["params"], f"APP-{run_dir.name}-r{round_number:03d}")
-            result = {"round": round_number, "profile": profile, "train_best": candidates[0], "selected_train": selected, "candidate_blind_replay": candidate_blind, "baseline_blind_replay": baseline_blind, "baseline_final_test": baseline_final_test, "baseline_current_window": baseline_current_window, "final_test": final, "promotion_gate": {"hard_rule": "first_21_complete_sessions_train_then_one_continuous_unseen_replay_to_latest_candle", "decision_basis": "continuous_unseen_replay_from_session_22_vs_fresh_10m_baseline", "train_sessions": TRAIN_SESSIONS, "test_step_sessions": "continuous_to_latest", "min_trades": MIN_PROMOTION_TRADES, "max_drawdown_degradation_pct": MAX_PROMOTION_DRAWDOWN_DEGRADATION_PCT}, "promoted": promoted, "agent_mutation": bool(client or antigravity), "proposal_provider": "nvidia" if client else None, "configuration_provider": "antigravity" if antigravity else None, "nvidia_proposals": nvidia_proposals}
+            result = {"round": round_number, "profile": profile, "train_best": candidates[0], "selected_train": selected, "candidate_blind_replay": candidate_blind, "baseline_blind_replay": baseline_blind, "baseline_final_test": baseline_final_test, "baseline_current_window": baseline_current_window, "final_test": final, "promotion_gate": {"hard_rule": "first_21_complete_sessions_train_then_one_continuous_unseen_replay_to_latest_candle", "decision_basis": "continuous_unseen_replay_from_session_22_vs_fresh_10m_baseline", "train_sessions": TRAIN_SESSIONS, "test_step_sessions": "continuous_to_latest", "min_trades": MIN_PROMOTION_TRADES, "max_drawdown_degradation_pct": MAX_PROMOTION_DRAWDOWN_DEGRADATION_PCT}, "promoted": promoted, "agent_mutation": bool(client or antigravity), "proposal_providers": [provider for provider in ("nvidia", "apple") if provider in providers], "configuration_provider": "antigravity" if antigravity else None, "nvidia_proposals": nvidia_proposals, "apple_proposals": apple_proposals}
             message_ids.append(send_agent_message(
                 args.db, run_id, round_number, "deterministic_evaluator", "antigravity",
                 "evaluation_result", {"candidate": final, "baseline": baseline_final_test, "promoted": promoted},
