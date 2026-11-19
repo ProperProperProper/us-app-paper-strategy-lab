@@ -47,6 +47,7 @@ from moomoo import (
 from quant_storage import save_candles, save_execution_event
 from quant_api import BASELINE, audit_api, risk_api, strategy_api
 from strategy_57pct import RESEARCH_INTERVALS, aggregate_candles, profit_capture_exit
+from runtime_artifact import validate_runtime_artifact
 
 
 POSITION_FRACTION = 0.95
@@ -148,6 +149,7 @@ class CompetitionBot:
         return None
 
     def _load_plugin_runtime(self, payload: dict[str, Any], config_path: Path) -> bool:
+        validate_runtime_artifact(payload)
         descriptor = payload.get("plugin")
         if not isinstance(descriptor, dict):
             return False
