@@ -157,7 +157,7 @@ def health_check() -> None:
     ensure_processes()
     check_open_d()
     check_console()
-    for db_path in (ROOT / "quant_dashboard.sqlite3", ROOT / "scripts" / "quant_dashboard.sqlite3"):
+    for db_path in (ROOT / "quant_dashboard.sqlite3",):
         with sqlite3.connect(db_path) as db:
             if db.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
                 raise RuntimeError(f"SQLite integrity failure: {db_path}")

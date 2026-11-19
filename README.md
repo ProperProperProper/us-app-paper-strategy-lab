@@ -30,7 +30,7 @@ python3 scripts/research_console.py
 open http://127.0.0.1:8790
 ```
 
-Moomoo OpenD must be available at `127.0.0.1:11111` for fresh candles. Local databases, credentials, logs, reports, and generated runs are ignored by Git.
+Moomoo OpenD must be available at `127.0.0.1:11111` for fresh candles. The lab, dashboard, and paper bot share the root `quant_dashboard.sqlite3` database; credentials, logs, reports, and generated runs are ignored by Git.
 
 ## Documentation
 

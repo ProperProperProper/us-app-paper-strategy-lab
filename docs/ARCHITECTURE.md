@@ -49,7 +49,7 @@ reloads that artifact and the strategy module at a completed-bar boundary. A
 failed reload leaves the last known-good runtime active. The bot never trusts a
 model response for fills, risk, or order authorization.
 
-The evaluator, not a model, decides returns, drawdown, trade counts, chronology, and candidate metrics. The base comparison is always a freshly rerun 10m baseline, but a candidate may win on a higher tested interval when its blind replay beats that 10m baseline. The promoted interval and strategy code are hot-swappable in the paper bot. Generated source is not executed as part of candidate evaluation. Fee-model support exists in the shared strategy engine, but the current mutation runner uses zero commission. Source and derived interval candles are persisted in SQLite.
+The evaluator, not a model, decides returns, drawdown, trade counts, chronology, and candidate metrics. The base comparison is always a freshly rerun 10m baseline, but a candidate may win on a higher tested interval when its blind replay beats that 10m baseline. The promoted interval and strategy code are hot-swappable in the paper bot. Generated source is not executed as part of candidate evaluation. Fee-model support exists in the shared strategy engine, but the current mutation runner uses zero commission. Source candles, derived interval candles, research messages, learning records, and execution events are persisted in the single root `quant_dashboard.sqlite3` database shared by all components.
 
 ## Main components
 

@@ -13,7 +13,10 @@ from typing import Any
 import pandas as pd
 
 
-DB_PATH = Path(__file__).with_name("quant_dashboard.sqlite3")
+# One authoritative SQLite store is shared by the lab, dashboard, and paper
+# bot. Keeping the path at repository root prevents candle and execution
+# records from diverging between separate script-local databases.
+DB_PATH = Path(__file__).resolve().parents[1] / "quant_dashboard.sqlite3"
 MIN_CANDLE_DATE = "2026-01-01T00:00:00"
 
 
