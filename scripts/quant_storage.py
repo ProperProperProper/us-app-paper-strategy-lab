@@ -18,7 +18,7 @@ import pandas as pd
 # records from diverging between separate script-local databases.
 DB_PATH = Path(__file__).resolve().parents[1] / "quant_dashboard.sqlite3"
 MIN_CANDLE_DATE = "2026-01-01T00:00:00"
-RESEARCH_INTERVALS = (10, 20, 30, 40, 50, 60, 70)
+RESEARCH_INTERVALS = tuple(range(1, 22))
 
 
 def _json(value: Any) -> str:
@@ -118,7 +118,7 @@ def save_candles(frame: pd.DataFrame, symbol: str, interval_minutes: int, source
                 source,
             ))
         db.executemany(
-            """INSERT OR REPLACE INTO candles
+            """INSERT OR IGNORE INTO candles
             (symbol, interval_minutes, time_key, open, high, low, close, volume, turnover, source)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", rows,
         )

@@ -1,6 +1,6 @@
 # US.APP Paper Strategy Research Lab
 
-An Apple Silicon quantitative trading research lab for US.APP 10-minute candles, Moomoo OpenD data, deterministic backtesting, chronological blind replay, and AI-proposed strategy mutations.
+An Apple Silicon quantitative trading research lab for US.APP 1-minute source candles, Moomoo OpenD data, deterministic backtesting, chronological blind replay, and AI-proposed strategy mutations.
 
 This repository is designed for paper-trading research and strategy experimentation. It cannot select a live trading environment; paper orders require an explicit runtime flag and are forced through Moomoo `TrdEnv.SIMULATE`.
 
@@ -10,12 +10,12 @@ The system is research-first: model output is a proposal, the deterministic eval
 
 The research lab and paper bot are one pipeline:
 
-1. Moomoo OpenD supplies validated 10-minute US.APP candles. The candles and derived interval bars are stored in SQLite.
+1. Moomoo OpenD supplies validated 1-minute US.APP candles. The source candles and all derived interval bars are stored in SQLite.
 2. MLX/local and NVIDIA agents propose bounded strategy hypotheses; required Antigravity coordinates and configures the proposals. None of the agents decides performance or submits orders.
-3. The deterministic evaluator tests every candidate on complete 10m, 20m, 30m, 40m, 50m, 60m, and 70m session bars using one continuous blind replay: the first 21 complete sessions are training/selection data, then every candle from session 22 through the latest candle is unseen test data.
-4. The fresh 10m baseline is always the comparison reference. A candidate may win on a higher interval when its blind replay beats that 10m baseline.
+3. The deterministic evaluator tests every candidate on complete 1m through 21m session bars using one continuous blind replay: the first 21 complete sessions are training/selection data, then every candle from session 22 through the latest candle is unseen test data.
+4. The fresh 1m baseline is always the comparison reference. A candidate may win on another interval when its blind replay beats that 1m baseline.
 5. An accepted candidate writes the local `paper_bot_live_strategy.json` artifact with its parameters, strategy version, and selected interval.
-6. The paper bot hot-swaps approved parameters, interval, and strategy code at a completed-bar boundary. It receives 10m Moomoo data, aggregates it locally when required, and submits only signal-driven orders to `TrdEnv.SIMULATE`.
+6. The paper bot hot-swaps approved parameters, interval, and strategy code at a completed-bar boundary. It receives 1m Moomoo data, aggregates it locally when required, and submits only signal-driven orders to `TrdEnv.SIMULATE`.
 
 The browser console at `http://127.0.0.1:8790` shows both research-lab state and paper-bot health. The legacy 8780 dashboard is not required for the current pipeline.
 

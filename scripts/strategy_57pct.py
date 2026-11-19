@@ -1,4 +1,4 @@
-"""Local US.APP 10-minute breakout/trend strategy implementation.
+"""Local US.APP 1-minute-source breakout/trend strategy implementation.
 
 Source model: the local Donchian/EMA baseline research implementation.
 Active baseline: lookback 33, EMA 17/26, TP 10.69%, stop 3.54%.
@@ -40,13 +40,13 @@ BASELINE = {
 }
 ALLOCATION = 1.0
 EMA_WARMUP_MULTIPLIER = 1
-RESEARCH_INTERVALS = (10, 20, 30, 40, 50, 60, 70)
+RESEARCH_INTERVALS = tuple(range(1, 22))
 
 
 def aggregate_candles(candles: pd.DataFrame, interval_minutes: int) -> pd.DataFrame:
-    """Aggregate complete US RTH 10-minute bars without crossing sessions."""
+    """Aggregate complete US RTH 1-minute bars without crossing sessions."""
     interval = int(interval_minutes)
-    if interval not in RESEARCH_INTERVALS or interval % 10:
+    if interval not in RESEARCH_INTERVALS:
         raise ValueError(f"interval must be one of {RESEARCH_INTERVALS}")
     frame = candles.copy().sort_index()
     if "time_key" in frame.columns:
@@ -58,12 +58,12 @@ def aggregate_candles(candles: pd.DataFrame, interval_minutes: int) -> pd.DataFr
         raise ValueError("candles must have a DatetimeIndex for interval aggregation")
     if native_core_available():
         return native_aggregate(frame, interval)
-    if frame.empty or interval == 10:
+    if frame.empty or interval == 1:
         return frame
-    expected = interval // 10
+    expected = interval
     session = frame.index.normalize()
     minutes = (frame.index - session).total_seconds() / 60.0 - 570.0
-    # Moomoo's 10-minute time_key is the bar end.  Ceiling assigns bars to
+    # Moomoo's 1-minute time_key is the bar end. Ceiling assigns bars to
     # 09:30+N*interval and therefore preserves complete higher-timeframe bars.
     bucket = np.maximum(np.ceil(minutes / interval).astype(int) - 1, 0)
     working = frame.assign(_session=session, _bucket=bucket)

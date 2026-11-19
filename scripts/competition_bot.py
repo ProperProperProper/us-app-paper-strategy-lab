@@ -6,7 +6,7 @@ Order submission additionally requires --live-paper. Without that flag the
 bot prints signals and intended orders but never submits anything.
 
 Strategy default:
-  - 33 completed 10-minute bars for the Donchian breakout
+  - 33 completed strategy bars built from the 1-minute source
   - EMA 17 / EMA 26 trend filter
   - long-only, one position per symbol
   - 10.69% take profit or 3.54% stop loss
@@ -52,7 +52,10 @@ from runtime_artifact import validate_runtime_artifact
 
 POSITION_FRACTION = 0.95
 POLL_SECONDS = 30
-MIN_BARS = 240
+# 21 complete RTH sessions at one-minute resolution (390 minutes/session).
+# The history request is paginated, so this is a source-history target rather
+# than a single OpenD response size.
+MIN_BARS = 21 * 390
 MAX_CANDLE_LAG_MINUTES = 120
 STATE_PATH = Path(__file__).with_name("competition_bot_state.json")
 LOG_PATH = Path(__file__).with_name("competition_bot.log")
@@ -109,7 +112,7 @@ class CompetitionBot:
         self.strategy_signal = strategy_api.signal
         self.strategy_profit_capture_exit = profit_capture_exit
         self.strategy_aggregate_candles = aggregate_candles
-        self.strategy_interval = 10
+        self.strategy_interval = 1
         self.strategy_params = dict(BASELINE)
         self._last_persist_signature: dict[str, tuple[Any, ...]] = {}
         self._refresh_strategy_code(force=True)
@@ -127,7 +130,7 @@ class CompetitionBot:
                 payload = json.loads(path.read_text())
                 params = payload.get("params", payload)
                 if isinstance(params, dict):
-                    interval = int(payload.get("interval", 10)) if isinstance(payload, dict) else 10
+                    interval = int(payload.get("interval", 1)) if isinstance(payload, dict) else 1
                     if interval not in RESEARCH_INTERVALS:
                         raise ValueError(f"unsupported live strategy interval: {interval}")
                     self.strategy_interval = interval
@@ -239,7 +242,7 @@ class CompetitionBot:
             return
         ret, error = self.quote.subscribe(
             [symbol],
-            [SubType.K_10M],
+            [SubType.K_1M],
             is_first_push=True,
             subscribe_push=False,
             extended_time=False,
@@ -377,27 +380,41 @@ class CompetitionBot:
 
     def candles(self, symbol: str) -> pd.DataFrame:
         self._ensure_live_candle_subscription(symbol)
-        ret, history, _ = self.quote.request_history_kline(
-            symbol,
-            ktype=KLType.K_10M,
-            max_count=MIN_BARS,
-            extended_time=False,
-            session="RTH",
-        )
-        if ret != RET_OK:
-            raise RuntimeError(f"candle history query failed for {symbol}: {history}")
-        data = self._clean_candles(history)
+        history_frames = []
+        page_key = None
+        fetched = 0
+        while fetched < MIN_BARS:
+            ret, history, page_key = self.quote.request_history_kline(
+                symbol,
+                ktype=KLType.K_1M,
+                max_count=min(1000, MIN_BARS - fetched),
+                page_req_key=page_key,
+                extended_time=False,
+                session="RTH",
+            )
+            if ret != RET_OK:
+                raise RuntimeError(f"candle history query failed for {symbol}: {history}")
+            page = self._clean_candles(history)
+            if page.empty:
+                break
+            history_frames.append(page)
+            fetched += len(page)
+            if page_key is None:
+                break
+        if not history_frames:
+            raise RuntimeError(f"candle history query returned no data for {symbol}")
+        data = self._clean_candles(pd.concat(history_frames, ignore_index=True))
 
         # request_history_kline can remain cached.  get_cur_kline is the live
         # subscribed feed; merge it by timestamp so it repairs the cache and
         # preserves only validated, deduplicated bars.
-        live_ret, live_data = self.quote.get_cur_kline(symbol, MIN_BARS, KLType.K_10M)
+        live_ret, live_data = self.quote.get_cur_kline(symbol, MIN_BARS, KLType.K_1M)
         if live_ret != RET_OK and "subscribe" in str(live_data).lower():
             # OpenD can reconnect while the local subscription set still says
             # the symbol is subscribed. Re-register once and retry recovery.
             self.quote_subscribed.discard(symbol)
             self._ensure_live_candle_subscription(symbol)
-            live_ret, live_data = self.quote.get_cur_kline(symbol, MIN_BARS, KLType.K_10M)
+            live_ret, live_data = self.quote.get_cur_kline(symbol, MIN_BARS, KLType.K_1M)
         if live_ret == RET_OK and isinstance(live_data, pd.DataFrame) and not live_data.empty:
             live = self._clean_candles(live_data)
             data = self._clean_candles(pd.concat([data, live], ignore_index=True))
@@ -411,7 +428,7 @@ class CompetitionBot:
             float(latest_row["close"]), float(latest_row["volume"]),
         )
         if self._last_persist_signature.get(symbol) != persist_signature:
-            save_candles(data.set_index("time_key"), symbol, 10)
+            save_candles(data.set_index("time_key"), symbol, 1)
             self._last_persist_signature[symbol] = persist_signature
         latest = data["time_key"].max()
         stale, lag_minutes = self._stale_during_open(latest)

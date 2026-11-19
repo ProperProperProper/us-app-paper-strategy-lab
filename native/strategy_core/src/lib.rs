@@ -70,13 +70,7 @@ pub unsafe extern "C" fn strategy_aggregate(
     if input.is_null() || output.is_null() || len == 0 || capacity == 0 {
         return -1;
     }
-    if !(interval_minutes == 10
-        || interval_minutes == 20
-        || interval_minutes == 30
-        || interval_minutes == 40
-        || interval_minutes == 50
-        || interval_minutes == 60
-        || interval_minutes == 70)
+    if !(1..=21).contains(&interval_minutes)
     {
         return -1;
     }
@@ -84,13 +78,13 @@ pub unsafe extern "C" fn strategy_aggregate(
     if strategy_validate(input, len) == 0 {
         return -2;
     }
-    if interval_minutes == 10 {
+    if interval_minutes == 1 {
         let count = len.min(capacity);
         std::ptr::copy_nonoverlapping(rows.as_ptr(), output, count);
         return count as isize;
     }
     let interval = interval_minutes as i64;
-    let expected = (interval / 10) as usize;
+    let expected = interval as usize;
     let mut written = 0usize;
     let mut i = 0usize;
     while i < rows.len() {

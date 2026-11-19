@@ -39,7 +39,7 @@ python3 scripts/competition_bot.py US.APP \
 ```
 
 The bot reads the promoted local artifact when present. It stores incoming
-10-minute candles in SQLite, aggregates the promoted 10–70m interval locally,
+1-minute source candles in SQLite, aggregates the promoted 1–21m interval locally,
 and hot-swaps approved strategy code/config without a process restart. The
 console's Paper bot panel shows process state, SIMULATE mode, last candle
 refresh, and recent errors.

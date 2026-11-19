@@ -15,7 +15,7 @@ def artifact(root: str):
             "constructor": {"lab_root": root},
         },
         "params": {"fast": 12, "slow": 35},
-        "interval": 10,
+        "interval": 1,
         "mode": "SIMULATE",
         "promotion": {
             "baseline": {"total_return_pct": 1.0},

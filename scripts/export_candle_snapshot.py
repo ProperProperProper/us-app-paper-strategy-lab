@@ -53,7 +53,7 @@ if __name__ == "__main__":
     parser.add_argument("--db", type=Path, default=Path("quant_dashboard.sqlite3"))
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--symbol", default="US.APP")
-    parser.add_argument("--interval", type=int, default=10)
+    parser.add_argument("--interval", type=int, default=1)
     parser.add_argument("--start", required=True)
     parser.add_argument("--end", required=True)
     args = parser.parse_args()

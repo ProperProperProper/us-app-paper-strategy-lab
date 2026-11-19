@@ -4,7 +4,7 @@ The lab uses a proposal-and-evaluation design:
 
 1. The US.APP runner loads all available deduplicated candles, or the explicitly requested timestamp window, and splits them chronologically.
 2. Local and NVIDIA gateway workers propose bounded mutations; mandatory Antigravity coordinates, challenges, and configures them.
-3. The local evaluator aggregates the 10-minute source candles into 10m, 20m, 30m, 40m, 50m, 60m, and 70m complete-session bars and scores every candidate on each interval.
+3. The local evaluator aggregates the 1-minute source candles into every complete interval from 1m through 21m and scores every candidate on each interval.
 4. The runner selects once using the first 21 complete sessions, then performs one continuous blind replay from session 22 through the latest candle. Each round also includes explicit profit-capture strategy variants.
 5. The selected parameters are written to the local live-strategy JSON artifact.
 6. The browser console exposes process status and the latest run artifact.
@@ -15,7 +15,7 @@ The handoff is file-and-database based, not model-to-order based:
 
 ```text
 Moomoo OpenD
-    ↓ validated 10m source candles
+    ↓ validated 1m source candles
 SQLite candle store ───────────────┐
     ↓                              │
 proposal agents → local evaluator  │
@@ -24,7 +24,7 @@ proposal agents → local evaluator  │
                     ↓              │
        promoted runtime JSON       │
                     ↓              │
-paper bot ← 10m feed + local interval aggregation
+paper bot ← 1m feed + local interval aggregation
     ↓
 Moomoo SIMULATE order path only
 ```
@@ -49,7 +49,7 @@ reloads that artifact and the strategy module at a completed-bar boundary. A
 failed reload leaves the last known-good runtime active. The bot never trusts a
 model response for fills, risk, or order authorization.
 
-The evaluator, not a model, decides returns, drawdown, trade counts, chronology, and candidate metrics. The base comparison is always a freshly rerun 10m baseline, but a candidate may win on a higher tested interval when its blind replay beats that 10m baseline. The promoted interval and strategy code are hot-swappable in the paper bot. Generated source is not executed as part of candidate evaluation. Fee-model support exists in the shared strategy engine, but the current mutation runner uses zero commission. Source candles, derived interval candles, research messages, learning records, and execution events are persisted in the single root `quant_dashboard.sqlite3` database shared by all components.
+The evaluator, not a model, decides returns, drawdown, trade counts, chronology, and candidate metrics. The base comparison is always a freshly rerun 1m baseline, but a candidate may win on another tested interval when its blind replay beats that 1m baseline. The promoted interval and strategy code are hot-swappable in the paper bot. Generated source is not executed as part of candidate evaluation. Fee-model support exists in the shared strategy engine, but the current mutation runner uses zero commission. Source candles, derived interval candles, research messages, learning records, and execution events are persisted in the single root `quant_dashboard.sqlite3` database shared by all components.
 
 ## Main components
 

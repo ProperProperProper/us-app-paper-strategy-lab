@@ -20,7 +20,7 @@ Every strategy investigation follows this order:
 3. Test strategy variants, not only scalar parameters. For profit research this includes target, break-even, profit-lock, trailing, trend-exit, and the `atr_peak_retrace` custom indicator.
 4. Use all available history in the fixed candle snapshot unless the research request specifies explicit start/end timestamps.
 5. Evaluate chronologically with the hard continuous blind protocol: train on all candles in the first 21 complete sessions, then test every candle from session 22 through the latest candle without reselection or chunking. Report trade count and drawdown with every return.
-6. Compare every candidate interval against a freshly rerun 10m baseline. Promote only when the selected interval's blind replay improves that baseline; a high full-window result alone is not sufficient.
+6. Compare every candidate interval from 1m through 21m against a freshly rerun 1m baseline. Promote only when the selected interval's blind replay improves that baseline; a high full-window result alone is not sufficient.
 
 Agents may propose hypotheses, but the local deterministic evaluator is the only authority for fills, returns, drawdown, trade count, and promotion.
 Agent prompts include deterministic data evidence for the active window: exact timestamps, candle and session counts, endpoint prices, raw close-to-close movement, and baseline training/final-test metrics. Agents must ground challenges in that evidence and may not invent trades or performance.

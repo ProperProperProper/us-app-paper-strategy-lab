@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 ENTRYPOINT = re.compile(r"^[A-Za-z_][\w.]*:[A-Za-z_][\w]*$")
-SUPPORTED_INTERVALS = (10, 20, 30, 40, 50, 60, 70)
+SUPPORTED_INTERVALS = tuple(range(1, 22))
 REQUIRED_TOP_LEVEL = {"plugin", "params", "interval", "mode", "promotion"}
 REQUIRED_PLUGIN = {"name", "version", "python_root", "entrypoint", "constructor"}
 REQUIRED_PROMOTION = {"baseline", "candidate", "replay_protocol"}

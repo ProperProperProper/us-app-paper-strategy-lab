@@ -16,7 +16,7 @@ from scripts.ml_strategy_engine import run_ml
 
 
 def candles(rows=80):
-    index = pd.date_range("2026-01-02 09:40", periods=rows, freq="10min")
+    index = pd.date_range("2026-01-02 09:31", periods=rows, freq="1min")
     close = pd.Series(100.0 + pd.RangeIndex(rows).to_numpy() * 0.15, index=index)
     return pd.DataFrame({
         "open": close - 0.05,
@@ -93,7 +93,7 @@ class SupervisorAndHotSwapTests(unittest.TestCase):
                     "constructor": {"lab_root": str(root_path)},
                 },
                 "params": {"fast": 5},
-                "interval": 10,
+                "interval": 1,
                 "mode": "SIMULATE",
                 "promotion": {
                     "baseline": {"total_return_pct": 1},

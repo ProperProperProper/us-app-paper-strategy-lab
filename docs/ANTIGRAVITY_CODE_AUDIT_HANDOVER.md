@@ -32,8 +32,8 @@ The audit must treat these as non-negotiable invariants:
 - Only 2026 candles and later future data may remain in SQLite.
 - Candles are deduplicated by `(symbol, interval_minutes, time_key)` and must
   have valid OHLCV relationships.
-- The base comparison is always a freshly rerun 10-minute baseline.
-- Research intervals are exactly 10, 20, 30, 40, 50, 60, and 70 minutes.
+- The base comparison is always a freshly rerun 1-minute baseline.
+- Research intervals are exactly every integer interval from 1 through 21 minutes, aggregated from 1-minute source candles.
 - Every candidate uses the same protocol: first 21 complete sessions for
   selection, then one continuous blind replay from session 22 through the
   latest candle. There are no rolling reselections, fixed validation slices,

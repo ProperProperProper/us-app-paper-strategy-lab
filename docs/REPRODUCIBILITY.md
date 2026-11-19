@@ -30,7 +30,7 @@ The timestamps above are examples from one local cache. Use the timestamps recor
 
 ## Match the execution model
 
-Use the same symbol (`US.APP`), 10-minute source candles, and candle columns (`open`, `high`, `low`, `close`, `volume`). The interval research layer derives complete-session 10m, 20m, 30m, 40m, 50m, 60m, and 70m bars without crossing session boundaries. It deduplicates by `time_key`, uses the first 21 complete sessions for training/selection, then one continuous unseen test from session 22 through the latest candle, 2 bps slippage per side, zero commission, long-only position, and one-position limit. The base comparison is always the freshly rerun 10m baseline; a candidate may be promoted at a higher interval if its blind replay beats that baseline. The active evaluator executes on completed-candle closes; it does not simulate next-open fills.
+Use the same symbol (`US.APP`), 1-minute source candles, and candle columns (`open`, `high`, `low`, `close`, `volume`). The interval research layer derives every complete-session interval from 1m through 21m without crossing session boundaries. It deduplicates by `time_key`, uses the first 21 complete sessions for training/selection, then one continuous unseen test from session 22 through the latest candle, 2 bps slippage per side, zero commission, long-only position, and one-position limit. The base comparison is always the freshly rerun 1m baseline; a candidate may be promoted at another interval if its blind replay beats that baseline. The active evaluator executes on completed-candle closes; it does not simulate next-open fills.
 
 The 21-session training boundary and continuous test are intentional: they prevent per-session reselection and expose the entire subsequent period as one unseen path. Comparisons using another training boundary are separate experiments.
 
@@ -40,9 +40,9 @@ Promotion is a separate decision from measurement: candidates are judged by the 
 
 The paper execution process reloads approved strategy code and configuration at completed-candle boundaries. The active code/config commit and hot-swapped run identifier must be recorded when comparing paper results.
 
-Paper session coverage is the full US regular session represented by the Moomoo 10-minute candles; comparisons must not silently truncate the session or mix partial-session data.
+Paper session coverage is the full US regular session represented by the Moomoo 1-minute source candles; comparisons must not silently truncate the session or mix partial-session data.
 
-Every rejection artifact also contains a fresh 10m baseline replay over the same continuous train-then-test sequence and full current data window.
+Every rejection artifact also contains a fresh 1m baseline replay over the same continuous train-then-test sequence and full current data window.
 
 Before comparing reports, record:
 
@@ -56,14 +56,14 @@ Results from different candle snapshots or commits must be reported as different
 
 ## Candle source
 
-The public repository does not bundle a stale calendar-day snapshot. The comparison dataset is the deduplicated 10-minute candle set in the local SQLite cache, or an explicitly exported snapshot created with `scripts/export_candle_snapshot.py`. Record its SHA-256, first/last timestamps, row count, and source when sharing results. Moomoo OpenD is needed to obtain newer data or create another explicitly identified experiment.
+The public repository does not bundle a stale calendar-day snapshot. The comparison dataset is the append-only deduplicated 1-minute candle set in the local SQLite cache, or an explicitly exported snapshot created with `scripts/export_candle_snapshot.py`. Record its SHA-256, first/last timestamps, row count, and source when sharing results. Moomoo OpenD is needed to obtain newer data or create another explicitly identified experiment.
 
 To create a new explicitly identified snapshot from a local cache:
 
 ```sh
 python3 scripts/export_candle_snapshot.py \
   --db quant_dashboard.sqlite3 \
-  --output data/us_app_10m_NEW.csv \
+  --output data/us_app_1m_NEW.csv \
   --start 'YYYY-MM-DD HH:MM:SS' \
   --end 'YYYY-MM-DD HH:MM:SS'
 ```

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""AI mutation loop for the US.APP 10-minute paper strategy.
+"""AI mutation loop for the US.APP 1-minute-source paper strategy.
 
 AI agents propose bounded strategy mutations. The local deterministic
 evaluator owns all P/L, and every accepted out-of-sample candidate is published
@@ -161,12 +161,12 @@ def load_frame(db_path: Path, start: str | None = None,
     with sqlite3.connect(db_path) as db:
         frame = pd.read_sql_query(
             """SELECT time_key, open, high, low, close, volume
-               FROM candles WHERE symbol='US.APP' AND interval_minutes=10
+               FROM candles WHERE symbol='US.APP' AND interval_minutes=1
                ORDER BY time_key""",
             db, parse_dates=["time_key"],
         )
     if frame.empty:
-        raise RuntimeError("No US.APP 10-minute candles in the Moomoo cache")
+        raise RuntimeError("No US.APP 1-minute candles in the Moomoo cache")
     frame = frame.drop_duplicates("time_key").set_index("time_key").sort_index()
     if end is not None:
         end_stamp = pd.Timestamp(end)
@@ -193,7 +193,7 @@ def persist_interval_frames(db_path: Path, frame: pd.DataFrame) -> None:
             derived = aggregate_candles(frame, interval)
             derived_rows = derived.itertuples(index=True, name="DerivedCandle")
             db.executemany(
-                """INSERT OR REPLACE INTO candles
+                """INSERT OR IGNORE INTO candles
                 (symbol, interval_minutes, time_key, open, high, low, close, volume, source)
                 VALUES ('US.APP', ?, ?, ?, ?, ?, ?, ?, 'derived_research')""",
                 [(interval, pd.Timestamp(row.Index).isoformat(), float(row.open), float(row.high),
@@ -223,14 +223,14 @@ def evaluate(frame: pd.DataFrame, params: dict) -> dict:
         aggregate = item.get("aggregate", {})
         score = float(aggregate.get("total_return_pct", 0.0)) - 0.35 * abs(float(aggregate.get("max_drawdown_pct", 0.0)))
         ranked_intervals.append((score, int(interval), item))
-    _, selected_interval, replay = max(ranked_intervals, key=lambda row: row[0]) if ranked_intervals else (0.0, 10, {"aggregate": {}})
-    # Every candidate gets a fresh 10m baseline replay on the identical
+    _, selected_interval, replay = max(ranked_intervals, key=lambda row: row[0]) if ranked_intervals else (0.0, 1, {"aggregate": {}})
+    # Every candidate gets a fresh 1m baseline replay on the identical
     # continuous train-then-test sequence.
-    baseline_replay = blind_session_walk_forward(interval_frames[10], [dict(BASELINE)], min_train_sessions=TRAIN_SESSIONS)
+    baseline_replay = blind_session_walk_forward(interval_frames[1], [dict(BASELINE)], min_train_sessions=TRAIN_SESSIONS)
     result = dict(replay.get("aggregate", {"total_return_pct": 0.0, "max_drawdown_pct": 0.0, "trades": 0}))
     result["selection_score"] = round(float(result.get("total_return_pct", 0.0)) - 0.35 * abs(float(result.get("max_drawdown_pct", 0.0))), 4)
     result["selected_interval"] = selected_interval
-    result["base_comparison_interval"] = 10
+    result["base_comparison_interval"] = 1
     result["research_intervals"] = list(RESEARCH_INTERVALS)
     return {"params": effective, "stats": result, "selected_interval": selected_interval, "interval_results": interval_results, "baseline_replay": baseline_replay}
 
@@ -304,7 +304,7 @@ def ask_agent(client: MCPClient | None, antigravity: AntigravityOptimizer | None
     }.get(role, "State the hypothesis, its failure mode, and the evidence required to accept it.")
     prompt = (
         "You are an independent mutation agent for the US.APP Moomoo paper bot. "
-        "The active strategy is a causal US.APP 10-minute Donchian breakout with EMA trend filtering and close-based execution. "
+        "The active strategy is a causal US.APP 1-minute-source Donchian breakout with EMA trend filtering and close-based execution. "
         "Propose exactly one bounded JSON strategy mutation. You may change "
         "lookback (integer 5-120), fast EMA (2-30), slow EMA (10-200), tp (0.02-0.50), "
         "stop (0.01-0.25), break-even/profit-lock/trailing-stop thresholds, "
@@ -381,12 +381,12 @@ def main() -> int:
     frame = load_frame(args.db, args.start, args.end)
     persist_interval_frames(args.db, frame)
     baseline_evidence = {
-        "current_window_10m": blind_session_walk_forward(frame, [dict(BASELINE)], min_train_sessions=TRAIN_SESSIONS)["aggregate"]
+        "current_window_1m": blind_session_walk_forward(frame, [dict(BASELINE)], min_train_sessions=TRAIN_SESSIONS)["aggregate"]
     }
     blind_candidates = [dict(BASELINE)] + [{**BASELINE, **variant} for variant in PROFIT_EXIT_RESEARCH_VARIANTS]
     blind_evidence = blind_session_walk_forward(frame, blind_candidates, min_train_sessions=TRAIN_SESSIONS)
     profile = {
-        "symbol": "US.APP", "interval": "10m", "rows": len(frame),
+        "symbol": "US.APP", "interval": "1m-source", "rows": len(frame),
         "start": str(frame.index.min()), "end": str(frame.index.max()),
         "data_window_policy": "all_available_candles_or_explicit_start_end", "training_sessions": TRAIN_SESSIONS, "requested_start": args.start,
         "requested_end": args.end, "rows_available_for_continuous_replay": len(frame),
@@ -434,8 +434,27 @@ def main() -> int:
         while args.continuous or round_number < args.rounds:
             if stop_file.exists():
                 break
+            # Re-read the authoritative SQLite source every round. The paper
+            # bot appends new 1-minute candles during the session, so a
+            # continuous lab must expand its replay window automatically
+            # instead of holding the startup snapshot forever.
+            refreshed = load_frame(args.db, args.start, args.end)
+            if len(refreshed) != len(frame) or refreshed.index[-1] != frame.index[-1]:
+                frame = refreshed
+                persist_interval_frames(args.db, frame)
+                profile.update({
+                    "rows": len(frame),
+                    "start": str(frame.index.min()),
+                    "end": str(frame.index.max()),
+                    "rows_available_for_continuous_replay": len(frame),
+                    "sessions": int(frame.index.normalize().nunique()),
+                    "close_start": round(float(frame["close"].iloc[0]), 6),
+                    "close_end": round(float(frame["close"].iloc[-1]), 6),
+                    "raw_close_to_close_return_pct": round(float((frame["close"].iloc[-1] / frame["close"].iloc[0] - 1) * 100), 3),
+                    "baseline_evidence": {"current_window_1m": blind_session_walk_forward(frame, [dict(BASELINE)], min_train_sessions=TRAIN_SESSIONS)["aggregate"]},
+                })
             round_number += 1
-            write_status(status_file, {"state": "RUNNING", "symbol": "US.APP", "interval": "10m", "round": round_number, "run_dir": str(run_dir), "profile": profile})
+            write_status(status_file, {"state": "RUNNING", "symbol": "US.APP", "interval": "1m-source", "round": round_number, "run_dir": str(run_dir), "profile": profile})
             global ACTIVE_POOL
             pool = concurrent.futures.ProcessPoolExecutor(max_workers=max(1, min(MAX_EVALUATOR_WORKERS, args.agents)))
             ACTIVE_POOL = pool
@@ -491,7 +510,7 @@ def main() -> int:
             candidates.sort(key=lambda item: item["stats"]["selection_score"], reverse=True)
             parents = [item["params"] for item in candidates[:max(2, args.agents)]]
             selected = candidates[0]
-            selected_interval = int(selected.get("selected_interval", 10))
+            selected_interval = int(selected.get("selected_interval", 1))
             selected_frame = aggregate_candles(frame, selected_interval)
             candidate_blind = blind_session_walk_forward(selected_frame, [selected["params"]], min_train_sessions=TRAIN_SESSIONS)
             baseline_blind = blind_session_walk_forward(frame, [dict(BASELINE)], min_train_sessions=TRAIN_SESSIONS)
@@ -506,13 +525,13 @@ def main() -> int:
             if final["stats"]["max_drawdown_pct"] < baseline_final_test["stats"]["max_drawdown_pct"] - MAX_PROMOTION_DRAWDOWN_DEGRADATION_PCT:
                 promotion_reasons.append("final_test_drawdown_too_deep")
             if promotion_reasons:
-                promoted = {"status": "REJECTED", "params": dict(BASELINE), "reasons": promotion_reasons, "decision_basis": "continuous_unseen_replay_from_session_22_vs_fresh_10m_baseline", "baseline_final_test": baseline_final_test["stats"], "baseline_current_window": baseline_current_window["stats"]}
+                promoted = {"status": "REJECTED", "params": dict(BASELINE), "reasons": promotion_reasons, "decision_basis": "continuous_unseen_replay_from_session_22_vs_fresh_1m_baseline", "baseline_final_test": baseline_final_test["stats"], "baseline_current_window": baseline_current_window["stats"]}
             else:
                 promoted = write_live_strategy(
                     selected_interval, selected["params"],
                     baseline_final_test["stats"], final["stats"],
                 )
-            result = {"round": round_number, "profile": profile, "train_best": candidates[0], "selected_train": selected, "candidate_blind_replay": candidate_blind, "baseline_blind_replay": baseline_blind, "baseline_final_test": baseline_final_test, "baseline_current_window": baseline_current_window, "final_test": final, "promotion_gate": {"hard_rule": "first_21_complete_sessions_train_then_one_continuous_unseen_replay_to_latest_candle", "decision_basis": "continuous_unseen_replay_from_session_22_vs_fresh_10m_baseline", "train_sessions": TRAIN_SESSIONS, "test_step_sessions": "continuous_to_latest", "min_trades": MIN_PROMOTION_TRADES, "max_drawdown_degradation_pct": MAX_PROMOTION_DRAWDOWN_DEGRADATION_PCT}, "promoted": promoted, "agent_mutation": bool(client or antigravity), "proposal_providers": [provider for provider in ("nvidia", "apple") if provider in providers], "configuration_provider": "antigravity" if antigravity else None, "nvidia_proposals": nvidia_proposals, "apple_proposals": apple_proposals}
+            result = {"round": round_number, "profile": profile, "train_best": candidates[0], "selected_train": selected, "candidate_blind_replay": candidate_blind, "baseline_blind_replay": baseline_blind, "baseline_final_test": baseline_final_test, "baseline_current_window": baseline_current_window, "final_test": final, "promotion_gate": {"hard_rule": "first_21_complete_sessions_train_then_one_continuous_unseen_replay_to_latest_candle", "decision_basis": "continuous_unseen_replay_from_session_22_vs_fresh_1m_baseline", "train_sessions": TRAIN_SESSIONS, "test_step_sessions": "continuous_to_latest", "min_trades": MIN_PROMOTION_TRADES, "max_drawdown_degradation_pct": MAX_PROMOTION_DRAWDOWN_DEGRADATION_PCT}, "promoted": promoted, "agent_mutation": bool(client or antigravity), "proposal_providers": [provider for provider in ("nvidia", "apple") if provider in providers], "configuration_provider": "antigravity" if antigravity else None, "nvidia_proposals": nvidia_proposals, "apple_proposals": apple_proposals}
             message_ids.append(send_agent_message(
                 args.db, run_id, round_number, "deterministic_evaluator", "antigravity",
                 "evaluation_result", {"candidate": final, "baseline": baseline_final_test, "promoted": promoted},
